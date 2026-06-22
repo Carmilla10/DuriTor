@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tree Form"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#2E7D32" />
+
+        <Spinner
+            android:id="@+id/treeOrchardSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp" />
+
+        <EditText
+            android:id="@+id/treeIdEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Tree ID"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/treeVarietyEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Durian Variety"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/treeAgeEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Age"
+            android:inputType="number"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/treeNotesEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Notes"
+            android:layout_marginTop="12dp" />
+
+        <Button
+            android:id="@+id/saveTreeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save Tree"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="#2E7D32" />
+
+    </LinearLayout>
+
+</ScrollView>
