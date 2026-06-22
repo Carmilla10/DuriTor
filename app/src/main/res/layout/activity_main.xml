@@ -125,7 +125,7 @@
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_stat_card"
                         android:gravity="center"
@@ -137,7 +137,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textColor="@color/accent_tree"
+                            android:textColor="@color/primary"
                             android:textSize="28sp"
                             android:textStyle="bold" />
 
@@ -146,6 +146,34 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:text="@string/trees_label"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_stat_card"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:id="@+id/regionCountText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="@color/accent_orchard"
+                            android:textSize="28sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/regions_label"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
@@ -279,6 +307,23 @@
                         android:textColor="@color/white"
                         app:cornerRadius="16dp"
                         app:icon="@drawable/ic_orchard"
+                        app:iconGravity="textStart"
+                        app:iconTint="@color/white" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/regionButton"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_columnWeight="1"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginBottom="12dp"
+                        android:backgroundTint="@color/secondary"
+                        android:paddingVertical="14dp"
+                        android:text="@string/nav_regions"
+                        android:textColor="@color/white"
+                        app:cornerRadius="16dp"
+                        app:icon="@drawable/ic_map"
                         app:iconGravity="textStart"
                         app:iconTint="@color/white" />
 

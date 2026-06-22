@@ -94,9 +94,7 @@ public class ProfileActivity extends DrawerActivity {
                 Toast.makeText(ProfileActivity.this, "Profile updated", Toast.LENGTH_SHORT).show();
 
                 // Refresh the drawer header to show the new name
-                if (getParent() instanceof DrawerActivity) {
-                    ((DrawerActivity) getParent()).refreshDrawerHeader();
-                }
+                refreshDrawerHeader();
 
             } else {
                 Toast.makeText(ProfileActivity.this, "Could not update profile", Toast.LENGTH_SHORT).show();

@@ -37,6 +37,12 @@
             android:name=".OrchardFormActivity"
             android:exported="false" />
         <activity
+            android:name=".RegionListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".RegionFormActivity"
+            android:exported="false" />
+        <activity
             android:name=".TreeListActivity"
             android:exported="false" />
         <activity

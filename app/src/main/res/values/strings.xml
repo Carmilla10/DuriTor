@@ -11,6 +11,7 @@
     <string name="nav_history">History</string>
     <string name="nav_map">Map</string>
     <string name="nav_orchards">Orchards</string>
+    <string name="nav_regions">Regions</string>
     <string name="nav_trees">Trees</string>
     <string name="nav_profile">Profile</string>
     <string name="nav_analytics">Analytics</string>
@@ -32,12 +33,15 @@
     <string name="history_empty">No fall events yet.</string>
     <string name="title_map">Map</string>
     <string name="title_orchards">Orchards</string>
+    <string name="title_regions">Regions</string>
     <string name="title_trees">Trees</string>
     <string name="title_profile">Profile</string>
     <string name="title_add_orchard">Add orchard</string>
     <string name="title_edit_orchard">Edit orchard</string>
     <string name="title_add_tree">Add tree</string>
     <string name="title_edit_tree">Edit tree</string>
+    <string name="title_add_region">Add region</string>
+    <string name="title_edit_region">Edit region</string>
     <string name="title_analytics">Analytics</string>
     <string name="analytics_overview">Overview</string>
     <string name="analytics_total_falls">Total falls</string>
@@ -45,8 +49,11 @@
     <string name="analytics_collected">Collected</string>
     <string name="analytics_pending">Pending</string>
     <string name="analytics_collection_rate">Collection rate</string>
-    <string name="analytics_farm_summary">Monitoring %1$d orchards and %2$d trees</string>
+    <string name="analytics_farm_summary">Monitoring %1$d orchards, %2$d regions and %3$d trees</string>
     <string name="analytics_by_orchard">Falls by orchard</string>
+    <string name="analytics_by_region">Falls by region</string>
     <string name="analytics_by_tree">Falls by tree</string>
+    <string name="analytics_total_regions">Regions</string>
     <string name="analytics_no_data">No fall data yet</string>
+    <string name="regions_label">Regions</string>
 </resources>

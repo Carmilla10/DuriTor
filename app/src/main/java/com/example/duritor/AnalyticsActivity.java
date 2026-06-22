@@ -34,13 +34,17 @@ public class AnalyticsActivity extends DrawerActivity {
     private TextView collectionRateText;
     private TextView farmSummaryText;
     private LinearLayout orchardBarsContainer;
+    private LinearLayout regionBarsContainer;
     private LinearLayout treeBarsContainer;
     private TextView orchardBarsEmpty;
+    private TextView regionBarsEmpty;
     private TextView treeBarsEmpty;
 
     private int orchardCount;
+    private int regionCount;
     private int treeCount;
     private boolean orchardsLoaded;
+    private boolean regionsLoaded;
     private boolean treesLoaded;
     private boolean fallsLoaded;
 
@@ -61,8 +65,10 @@ public class AnalyticsActivity extends DrawerActivity {
         collectionRateText = findViewById(R.id.collectionRateText);
         farmSummaryText = findViewById(R.id.farmSummaryText);
         orchardBarsContainer = findViewById(R.id.orchardBarsContainer);
+        regionBarsContainer = findViewById(R.id.regionBarsContainer);
         treeBarsContainer = findViewById(R.id.treeBarsContainer);
         orchardBarsEmpty = findViewById(R.id.orchardBarsEmpty);
+        regionBarsEmpty = findViewById(R.id.regionBarsEmpty);
         treeBarsEmpty = findViewById(R.id.treeBarsEmpty);
 
         loadAnalytics();
@@ -75,6 +81,15 @@ public class AnalyticsActivity extends DrawerActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 orchardCount = (int) snapshot.getChildrenCount();
                 orchardsLoaded = true;
+                maybeUpdateSummary();
+            }
+        });
+
+        database.getReference("regions").addListenerForSingleValueEvent(new SimpleCounterListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                regionCount = (int) snapshot.getChildrenCount();
+                regionsLoaded = true;
                 maybeUpdateSummary();
             }
         });
@@ -99,6 +114,7 @@ public class AnalyticsActivity extends DrawerActivity {
                 int pending = 0;
 
                 Map<String, Integer> orchardFalls = new HashMap<>();
+                Map<String, Integer> regionFalls = new HashMap<>();
                 Map<String, Integer> treeFalls = new HashMap<>();
 
                 for (DataSnapshot child : snapshot.getChildren()) {
@@ -122,6 +138,12 @@ public class AnalyticsActivity extends DrawerActivity {
                     }
                     orchardFalls.put(orchard, orchardFalls.getOrDefault(orchard, 0) + 1);
 
+                    String region = child.child("regionName").getValue(String.class);
+                    if (region == null || region.isEmpty()) {
+                        region = "Unknown region";
+                    }
+                    regionFalls.put(region, regionFalls.getOrDefault(region, 0) + 1);
+
                     String tree = child.child("treeName").getValue(String.class);
                     if (tree == null || tree.isEmpty()) {
                         tree = "Unknown tree";
@@ -138,6 +160,7 @@ public class AnalyticsActivity extends DrawerActivity {
                 collectionRateText.setText(rate + "%");
 
                 renderBars(orchardBarsContainer, orchardBarsEmpty, orchardFalls);
+                renderBars(regionBarsContainer, regionBarsEmpty, regionFalls);
                 renderBars(treeBarsContainer, treeBarsEmpty, treeFalls);
 
                 fallsLoaded = true;
@@ -152,12 +175,13 @@ public class AnalyticsActivity extends DrawerActivity {
     }
 
     private void maybeUpdateSummary() {
-        if (!orchardsLoaded || !treesLoaded || !fallsLoaded) {
+        if (!orchardsLoaded || !regionsLoaded || !treesLoaded || !fallsLoaded) {
             return;
         }
         farmSummaryText.setText(getString(
                 R.string.analytics_farm_summary,
                 orchardCount,
+                regionCount,
                 treeCount
         ));
     }

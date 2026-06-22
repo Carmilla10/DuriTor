@@ -25,6 +25,10 @@
             android:icon="@drawable/ic_orchard_nav"
             android:title="@string/nav_orchards" />
         <item
+            android:id="@+id/nav_regions"
+            android:icon="@drawable/ic_map_nav"
+            android:title="@string/nav_regions" />
+        <item
             android:id="@+id/nav_trees"
             android:icon="@drawable/ic_tree_nav"
             android:title="@string/nav_trees" />

@@ -2,6 +2,7 @@ package com.example.duritor;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -24,17 +25,27 @@ import java.util.Map;
 public class TreeFormActivity extends DrawerActivity {
 
     private Spinner treeOrchardSpinner;
+    private Spinner treeRegionSpinner;
     private EditText treeIdEdit;
     private EditText treeVarietyEdit;
     private EditText treeAgeEdit;
     private EditText treeNotesEdit;
     private Button saveTreeButton;
     private DatabaseReference orchardsRef;
+    private DatabaseReference regionsRef;
     private DatabaseReference treesRef;
     private String treeId;
+    private String treeRegionId;
+    private boolean treeLoaded = false;
     private List<String> orchardIds;
     private List<String> orchardNames;
+    private List<String> regionIds;
+    private List<String> regionNames;
+    private List<String> regionOrchardIds;
+    private List<String> filteredRegionIds;
+    private List<String> filteredRegionNames;
     private ArrayAdapter<String> orchardAdapter;
+    private ArrayAdapter<String> regionAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +55,7 @@ public class TreeFormActivity extends DrawerActivity {
         setupDrawerShell(R.layout.activity_tree_form, R.id.nav_trees, titleRes);
 
         treeOrchardSpinner = findViewById(R.id.treeOrchardSpinner);
+        treeRegionSpinner = findViewById(R.id.treeRegionSpinner);
         treeIdEdit = findViewById(R.id.treeIdEdit);
         treeVarietyEdit = findViewById(R.id.treeVarietyEdit);
         treeAgeEdit = findViewById(R.id.treeAgeEdit);
@@ -51,21 +63,101 @@ public class TreeFormActivity extends DrawerActivity {
         saveTreeButton = findViewById(R.id.saveTreeButton);
 
         orchardsRef = FirebaseDatabase.getInstance().getReference("orchards");
+        regionsRef = FirebaseDatabase.getInstance().getReference("regions");
         treesRef = FirebaseDatabase.getInstance().getReference("trees");
 
         orchardIds = new ArrayList<>();
         orchardNames = new ArrayList<>();
+        regionIds = new ArrayList<>();
+        regionNames = new ArrayList<>();
+        regionOrchardIds = new ArrayList<>();
+        filteredRegionIds = new ArrayList<>();
+        filteredRegionNames = new ArrayList<>();
+
         orchardAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, orchardNames);
         orchardAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         treeOrchardSpinner.setAdapter(orchardAdapter);
 
+        regionAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, filteredRegionNames);
+        regionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        treeRegionSpinner.setAdapter(regionAdapter);
+
+        treeOrchardSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                filterRegionsForOrchard(position);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                filterRegionsForOrchard(0);
+            }
+        });
+
         loadOrchards();
+        loadRegions();
 
         if (treeId != null) {
             loadTree();
         }
 
         saveTreeButton.setOnClickListener(v -> saveTree());
+    }
+
+    private void loadRegions() {
+        regionsRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                regionIds.clear();
+                regionNames.clear();
+                regionOrchardIds.clear();
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    String regionId = child.getKey();
+                    String name = child.child("name").getValue(String.class);
+                    String orchardId = child.child("orchardId").getValue(String.class);
+                    regionIds.add(regionId);
+                    regionNames.add(name != null && !name.isEmpty() ? name : "Unnamed Region");
+                    regionOrchardIds.add(orchardId != null ? orchardId : "");
+                }
+                int selectedOrchardPosition = treeOrchardSpinner.getSelectedItemPosition();
+                filterRegionsForOrchard(selectedOrchardPosition);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                Toast.makeText(TreeFormActivity.this, "Could not load regions", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void filterRegionsForOrchard(int orchardPosition) {
+        filteredRegionIds.clear();
+        filteredRegionNames.clear();
+
+        if (orchardPosition < 0 || orchardPosition >= orchardIds.size()) {
+            filteredRegionIds.add("");
+            filteredRegionNames.add("Select orchard first");
+        } else {
+            String orchardId = orchardIds.get(orchardPosition);
+            for (int i = 0; i < regionIds.size(); i++) {
+                if (orchardId.equals(regionOrchardIds.get(i))) {
+                    filteredRegionIds.add(regionIds.get(i));
+                    filteredRegionNames.add(regionNames.get(i));
+                }
+            }
+            if (filteredRegionIds.isEmpty()) {
+                filteredRegionIds.add("");
+                filteredRegionNames.add("No regions available");
+            }
+        }
+
+        regionAdapter.notifyDataSetChanged();
+        if (treeLoaded && treeRegionId != null && !treeRegionId.isEmpty()) {
+            int index = filteredRegionIds.indexOf(treeRegionId);
+            if (index >= 0) {
+                treeRegionSpinner.setSelection(index);
+            }
+        }
     }
 
     private void loadOrchards() {
@@ -103,6 +195,7 @@ public class TreeFormActivity extends DrawerActivity {
                 treeVarietyEdit.setText(snapshot.child("durianVariety").getValue(String.class));
                 treeAgeEdit.setText(snapshot.child("age").getValue(String.class));
                 treeNotesEdit.setText(snapshot.child("notes").getValue(String.class));
+                treeRegionId = snapshot.child("regionId").getValue(String.class);
                 String orchardId = snapshot.child("orchardId").getValue(String.class);
                 if (orchardId != null) {
                     int index = orchardIds.indexOf(orchardId);
@@ -110,6 +203,7 @@ public class TreeFormActivity extends DrawerActivity {
                         treeOrchardSpinner.setSelection(index);
                     }
                 }
+                treeLoaded = true;
             }
 
             @Override
@@ -138,9 +232,16 @@ public class TreeFormActivity extends DrawerActivity {
             Toast.makeText(this, "Select an orchard", Toast.LENGTH_SHORT).show();
             return;
         }
+        int regionPosition = treeRegionSpinner.getSelectedItemPosition();
+        if (regionPosition < 0 || regionPosition >= filteredRegionIds.size() || filteredRegionIds.get(regionPosition).isEmpty()) {
+            Toast.makeText(this, "Select a region", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         String orchardId = orchardIds.get(orchardPosition);
         String orchardName = orchardNames.get(orchardPosition);
+        String regionId = filteredRegionIds.get(regionPosition);
+        String regionName = filteredRegionNames.get(regionPosition);
 
         if (treeId == null) {
             treeId = treesRef.push().getKey();
@@ -154,6 +255,8 @@ public class TreeFormActivity extends DrawerActivity {
         update.put("notes", notes);
         update.put("orchardId", orchardId);
         update.put("orchardName", orchardName);
+        update.put("regionId", regionId);
+        update.put("regionName", regionName);
 
         treesRef.child(treeId).updateChildren(update).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {

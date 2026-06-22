@@ -155,6 +155,8 @@ public abstract class DrawerActivity extends AppCompatActivity {
             target = OrchardListActivity.class;
         } else if (menuId == R.id.nav_trees) {
             target = TreeListActivity.class;
+        } else if (menuId == R.id.nav_regions) {
+            target = RegionListActivity.class;
         } else if (menuId == R.id.nav_profile) {
             target = ProfileActivity.class;
         }

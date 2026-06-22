@@ -130,13 +130,17 @@ public class TreeListActivity extends DrawerActivity {
                     String variety = child.child("durianVariety").getValue(String.class);
                     String orchardId = child.child("orchardId").getValue(String.class);
                     String orchardName = orchardNameById.getOrDefault(orchardId, "Unknown Orchard");
+                    String regionName = child.child("regionName").getValue(String.class);
+                    if (regionName == null || regionName.isEmpty()) {
+                        regionName = "Unknown Region";
+                    }
                     if (name == null) {
                         name = "Unnamed Tree";
                     }
                     if (variety == null || variety.isEmpty()) {
                         variety = "Unknown Variety";
                     }
-                    String display = name + " - " + variety + " (" + orchardName + ")";
+                    String display = name + " - " + variety + " (" + orchardName + ", " + regionName + ")";
                     Map<String, Object> tree = new HashMap<>();
                     tree.put("name", name);
                     tree.put("treeId", treeId);
@@ -144,6 +148,7 @@ public class TreeListActivity extends DrawerActivity {
                     tree.put("age", child.child("age").getValue(String.class));
                     tree.put("orchardId", orchardId);
                     tree.put("orchardName", orchardName);
+                    tree.put("regionName", regionName);
                     tree.put("notes", child.child("notes").getValue(String.class));
                     treeIds.add(treeId);
                     allTreeData.add(tree);

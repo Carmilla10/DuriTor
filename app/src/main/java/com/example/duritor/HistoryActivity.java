@@ -74,6 +74,7 @@ public class HistoryActivity extends DrawerActivity {
                     event.date = valueOrDefault(child.child("date").getValue(String.class), "-");
                     event.time = valueOrDefault(child.child("time").getValue(String.class), "-");
                     event.orchard = valueOrDefault(child.child("orchardName").getValue(String.class), "Unknown Orchard");
+                    event.region = valueOrDefault(child.child("regionName").getValue(String.class), "Unknown Region");
                     event.tree = valueOrDefault(child.child("treeName").getValue(String.class),
                             valueOrDefault(child.child("treeId").getValue(String.class), "Unknown Tree"));
                     event.photoUrl = child.child("photoUrl").getValue(String.class);
@@ -182,6 +183,7 @@ public class HistoryActivity extends DrawerActivity {
             holder.dateText.setText("📅 " + event.date);
             holder.timeText.setText("🕒 " + event.time);
             holder.orchardText.setText("🌳 " + event.orchard);
+            holder.regionText.setText("📍 " + event.region);
             holder.treeText.setText("🌴 " + event.tree);
 
             if (event.collected) {
@@ -220,6 +222,7 @@ public class HistoryActivity extends DrawerActivity {
         final TextView dateText;
         final TextView timeText;
         final TextView orchardText;
+        final TextView regionText;
         final TextView treeText;
         final ImageView historyImage;
         final TextView statusText;
@@ -231,6 +234,7 @@ public class HistoryActivity extends DrawerActivity {
             dateText = view.findViewById(R.id.historyDate);
             timeText = view.findViewById(R.id.historyTime);
             orchardText = view.findViewById(R.id.historyOrchard);
+            regionText = view.findViewById(R.id.historyRegion);
             treeText = view.findViewById(R.id.historyTree);
             historyImage = view.findViewById(R.id.historyImage);
             statusText = view.findViewById(R.id.historyStatus);
@@ -245,6 +249,7 @@ public class HistoryActivity extends DrawerActivity {
         String date;
         String time;
         String orchard;
+        String region;
         String tree;
         String photoUrl;
         boolean collected;

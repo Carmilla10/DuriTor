@@ -35,7 +35,7 @@ import java.util.Locale;
 
 public class MainActivity extends DrawerActivity {
 
-    private TextView alertText, timeText, orchardCountText, treeCountText;
+    private TextView alertText, timeText, orchardCountText, regionCountText, treeCountText;
     private ImageView capturedImageView;
     private DatabaseReference databaseReference;
     private FirebaseAuth mAuth;
@@ -52,6 +52,7 @@ public class MainActivity extends DrawerActivity {
         alertText = findViewById(R.id.alertText);
         timeText = findViewById(R.id.timeText);
         orchardCountText = findViewById(R.id.orchardCountText);
+        regionCountText = findViewById(R.id.regionCountText);
         treeCountText = findViewById(R.id.treeCountText);
         capturedImageView = findViewById(R.id.capturedImageView);
 
@@ -123,6 +124,8 @@ public class MainActivity extends DrawerActivity {
                 startActivity(new Intent(MainActivity.this, MapActivity.class)));
         findViewById(R.id.orchardButton).setOnClickListener(v ->
                 startActivity(new Intent(MainActivity.this, OrchardListActivity.class)));
+        findViewById(R.id.regionButton).setOnClickListener(v ->
+                startActivity(new Intent(MainActivity.this, RegionListActivity.class)));
         findViewById(R.id.treeButton).setOnClickListener(v ->
                 startActivity(new Intent(MainActivity.this, TreeListActivity.class)));
         findViewById(R.id.analyticsButton).setOnClickListener(v ->
@@ -173,6 +176,17 @@ public class MainActivity extends DrawerActivity {
             @Override
             public void onCancelled(DatabaseError error) {
                 orchardCountText.setText("—");
+            }
+        });
+
+        FirebaseDatabase.getInstance().getReference("regions").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                regionCountText.setText(String.valueOf(snapshot.getChildrenCount()));
+            }
+            @Override
+            public void onCancelled(DatabaseError error) {
+                regionCountText.setText("—");
             }
         });
 

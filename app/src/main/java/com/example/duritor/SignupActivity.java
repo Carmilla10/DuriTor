@@ -9,6 +9,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 
 public class SignupActivity extends AppCompatActivity {
 
@@ -47,6 +49,10 @@ public class SignupActivity extends AppCompatActivity {
                     .addOnCompleteListener(task -> {
 
                         if(task.isSuccessful()){
+
+                            String uid = task.getResult().getUser().getUid();
+                            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(uid);
+                            userRef.child("displayName").setValue(userEmail.split("@")[0]);
 
                             Toast.makeText(this,"Signup Successful",Toast.LENGTH_SHORT).show();
 
