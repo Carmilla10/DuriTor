@@ -1,11 +1,11 @@
 package com.example.duritor;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,10 +25,11 @@ import java.util.Map;
 public class ProfileActivity extends DrawerActivity {
 
     private TextView profileEmailText;
-    private EditText profileNameEdit;
+    private TextView profileNameText;
+    private TextView profileUsernameText;
     private Button saveProfileButton;
     private Button changePasswordButton;
-    private Button logoutButton;
+    private TextView logoutButton;
     private FirebaseAuth mAuth;
     private DatabaseReference usersRef;
 
@@ -38,7 +39,8 @@ public class ProfileActivity extends DrawerActivity {
         setupDrawerShell(R.layout.activity_profile, R.id.nav_profile, R.string.title_profile);
 
         profileEmailText = findViewById(R.id.profileEmailText);
-        profileNameEdit = findViewById(R.id.profileNameEdit);
+        profileNameText = findViewById(R.id.profileNameText);
+        profileUsernameText = findViewById(R.id.profileUsernameText);
         saveProfileButton = findViewById(R.id.saveProfileButton);
         changePasswordButton = findViewById(R.id.changePasswordButton);
         logoutButton = findViewById(R.id.logoutButton);
@@ -51,27 +53,24 @@ public class ProfileActivity extends DrawerActivity {
             return;
         }
 
-        profileEmailText.setText("Email: " + user.getEmail());
+        profileEmailText.setText(user.getEmail());
         usersRef = FirebaseDatabase.getInstance().getReference("users").child(user.getUid());
         loadUserProfile();
 
-        saveProfileButton.setOnClickListener(v -> saveProfile());
+        saveProfileButton.setOnClickListener(v -> showEditProfileDialog());
         changePasswordButton.setOnClickListener(v -> showPasswordDialog());
-        logoutButton.setOnClickListener(v -> {
-            FirebaseAuth.getInstance().signOut();
-            startActivity(new Intent(ProfileActivity.this, LoginActivity.class));
-            finish();
-        });
+        logoutButton.setOnClickListener(v -> showLogoutDialog());
     }
 
     private void loadUserProfile() {
         usersRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                String name = snapshot.child("displayName").getValue(String.class);
-                if (name != null) {
-                    profileNameEdit.setText(name);
-                }
+                String fullName = snapshot.child("fullName").getValue(String.class);
+                String username = snapshot.child("username").getValue(String.class);
+
+                if (fullName != null) profileNameText.setText(fullName);
+                if (username != null) profileUsernameText.setText("@" + username);
             }
 
             @Override
@@ -81,21 +80,53 @@ public class ProfileActivity extends DrawerActivity {
         });
     }
 
-    private void saveProfile() {
-        String displayName = profileNameEdit.getText().toString().trim();
-        if (displayName.isEmpty()) {
-            Toast.makeText(this, "Enter a display name", Toast.LENGTH_SHORT).show();
-            return;
+    private void showEditProfileDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(40, 20, 40, 20);
+
+        final EditText nameInput = new EditText(this);
+        nameInput.setHint("Full Name");
+        nameInput.setText(profileNameText.getText().toString());
+        layout.addView(nameInput);
+
+        final EditText usernameInput = new EditText(this);
+        usernameInput.setHint("Username");
+        String currentUsername = profileUsernameText.getText().toString();
+        if (currentUsername.startsWith("@")) {
+            currentUsername = currentUsername.substring(1);
         }
+        usernameInput.setText(currentUsername);
+        layout.addView(usernameInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Edit Profile")
+                .setView(layout)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    String newName = nameInput.getText().toString().trim();
+                    String newUsername = usernameInput.getText().toString().trim();
+
+                    if (!newName.isEmpty() && !newUsername.isEmpty()) {
+                        profileNameText.setText(newName);
+                        profileUsernameText.setText("@" + newUsername);
+                        saveProfileToFirebase(newName, newUsername);
+                    } else {
+                        Toast.makeText(ProfileActivity.this, "Fields cannot be empty", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveProfileToFirebase(String fullName, String username) {
         Map<String, Object> updates = new HashMap<>();
-        updates.put("displayName", displayName);
+        updates.put("fullName", fullName);
+        updates.put("username", username);
+
         usersRef.updateChildren(updates).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 Toast.makeText(ProfileActivity.this, "Profile updated", Toast.LENGTH_SHORT).show();
-
-                // Refresh the drawer header to show the new name
                 refreshDrawerHeader();
-
             } else {
                 Toast.makeText(ProfileActivity.this, "Could not update profile", Toast.LENGTH_SHORT).show();
             }
@@ -126,6 +157,19 @@ public class ProfileActivity extends DrawerActivity {
                             }
                         });
                     }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showLogoutDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to logout?")
+                .setPositiveButton("Logout", (dialog, which) -> {
+                    FirebaseAuth.getInstance().signOut();
+                    startActivity(new Intent(ProfileActivity.this, LoginActivity.class));
+                    finish();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

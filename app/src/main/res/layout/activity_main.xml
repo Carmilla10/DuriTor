@@ -391,6 +391,7 @@
         android:layout_width="280dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
+        android:fitsSystemWindows="true"
         android:background="@color/surface"
         app:headerLayout="@layout/nav_drawer_header"
         app:itemIconTint="@color/primary"

@@ -13,14 +13,6 @@
             android:icon="@drawable/ic_history_nav"
             android:title="@string/nav_history" />
         <item
-            android:id="@+id/nav_analytics"
-            android:icon="@drawable/ic_analytics"
-            android:title="@string/nav_analytics" />
-        <item
-            android:id="@+id/nav_map"
-            android:icon="@drawable/ic_map_nav"
-            android:title="@string/nav_map" />
-        <item
             android:id="@+id/nav_orchards"
             android:icon="@drawable/ic_orchard_nav"
             android:title="@string/nav_orchards" />
@@ -32,6 +24,14 @@
             android:id="@+id/nav_trees"
             android:icon="@drawable/ic_tree_nav"
             android:title="@string/nav_trees" />
+        <item
+            android:id="@+id/nav_analytics"
+            android:icon="@drawable/ic_analytics"
+            android:title="@string/nav_analytics" />
+        <item
+            android:id="@+id/nav_map"
+            android:icon="@drawable/ic_map_nav"
+            android:title="@string/nav_map" />
         <item
             android:id="@+id/nav_profile"
             android:icon="@drawable/ic_profile_nav"

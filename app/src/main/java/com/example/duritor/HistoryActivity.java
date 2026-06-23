@@ -16,7 +16,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
-import com.google.android.material.button.MaterialButton;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -36,7 +35,10 @@ public class HistoryActivity extends DrawerActivity {
     private ListView historyListView;
     private DatabaseReference historyRef;
     private final List<FallEvent> events = new ArrayList<>();
+    private final List<FallEvent> filteredEvents = new ArrayList<>();
     private HistoryAdapter adapter;
+    private TextView chipAll, chipPending, chipCollected;
+    private String currentFilter = "all";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,8 +54,66 @@ public class HistoryActivity extends DrawerActivity {
         adapter = new HistoryAdapter();
         historyListView.setAdapter(adapter);
 
+        // Filter chips
+        chipAll = findViewById(R.id.chipAll);
+        chipPending = findViewById(R.id.chipPending);
+        chipCollected = findViewById(R.id.chipCollected);
+
+        chipAll.setOnClickListener(v -> {
+            currentFilter = "all";
+            updateChips();
+            applyFilter();
+        });
+
+        chipPending.setOnClickListener(v -> {
+            currentFilter = "pending";
+            updateChips();
+            applyFilter();
+        });
+
+        chipCollected.setOnClickListener(v -> {
+            currentFilter = "collected";
+            updateChips();
+            applyFilter();
+        });
+
         historyRef = FirebaseDatabase.getInstance().getReference("fallEvents");
         loadHistory();
+    }
+
+    private void updateChips() {
+        chipAll.setBackgroundResource(R.drawable.bg_chip_inactive);
+        chipPending.setBackgroundResource(R.drawable.bg_chip_inactive);
+        chipCollected.setBackgroundResource(R.drawable.bg_chip_inactive);
+
+        chipAll.setTextColor(getColor(R.color.text_primary));
+        chipPending.setTextColor(getColor(R.color.text_primary));
+        chipCollected.setTextColor(getColor(R.color.text_primary));
+
+        if (currentFilter.equals("all")) {
+            chipAll.setBackgroundResource(R.drawable.bg_chip_active);
+            chipAll.setTextColor(getColor(R.color.white));
+        } else if (currentFilter.equals("pending")) {
+            chipPending.setBackgroundResource(R.drawable.bg_chip_active);
+            chipPending.setTextColor(getColor(R.color.white));
+        } else if (currentFilter.equals("collected")) {
+            chipCollected.setBackgroundResource(R.drawable.bg_chip_active);
+            chipCollected.setTextColor(getColor(R.color.white));
+        }
+    }
+
+    private void applyFilter() {
+        filteredEvents.clear();
+        for (FallEvent event : events) {
+            if (currentFilter.equals("all")) {
+                filteredEvents.add(event);
+            } else if (currentFilter.equals("pending") && !event.collected) {
+                filteredEvents.add(event);
+            } else if (currentFilter.equals("collected") && event.collected) {
+                filteredEvents.add(event);
+            }
+        }
+        adapter.notifyDataSetChanged();
     }
 
     private void loadHistory() {
@@ -64,9 +124,7 @@ public class HistoryActivity extends DrawerActivity {
 
                 for (DataSnapshot child : snapshot.getChildren()) {
                     String eventId = child.getKey();
-                    if (eventId == null) {
-                        continue;
-                    }
+                    if (eventId == null) continue;
 
                     FallEvent event = new FallEvent();
                     event.id = eventId;
@@ -83,7 +141,14 @@ public class HistoryActivity extends DrawerActivity {
                     events.add(event);
                 }
 
-                adapter.notifyDataSetChanged();
+                // Sort by date/time (newest first)
+                events.sort((e1, e2) -> {
+                    String d1 = e1.date + " " + e1.time;
+                    String d2 = e2.date + " " + e2.time;
+                    return d2.compareTo(d1);
+                });
+
+                applyFilter();
             }
 
             @Override
@@ -97,9 +162,23 @@ public class HistoryActivity extends DrawerActivity {
         return (value != null && !value.isEmpty()) ? value : fallback;
     }
 
+    private String formatDate(String date) {
+        try {
+            SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            SimpleDateFormat outputFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.getDefault());
+            Date parsedDate = inputFormat.parse(date);
+            if (parsedDate != null) {
+                return outputFormat.format(parsedDate);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return date;
+    }
+
     private void collectEvent(FallEvent event) {
         if (event.collected) {
-            Toast.makeText(this, R.string.history_already_collected, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Already collected", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -112,31 +191,28 @@ public class HistoryActivity extends DrawerActivity {
 
         historyRef.child(event.id).updateChildren(updates).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-                Toast.makeText(HistoryActivity.this, R.string.history_collected_success, Toast.LENGTH_SHORT).show();
+                Toast.makeText(HistoryActivity.this, "✅ Marked as collected!", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(HistoryActivity.this, "Could not mark as collected", Toast.LENGTH_SHORT).show();
+                Toast.makeText(HistoryActivity.this, "Failed to mark as collected", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     private void confirmDeleteEvent(FallEvent event) {
         new AlertDialog.Builder(this)
-                .setTitle(R.string.history_delete_title)
-                .setMessage(R.string.history_delete_message)
-                .setPositiveButton(R.string.history_delete, (dialog, which) -> deleteEvent(event))
-                .setNegativeButton(android.R.string.cancel, null)
+                .setTitle("Delete Event")
+                .setMessage("Are you sure you want to delete this event?")
+                .setPositiveButton("Delete", (dialog, which) -> deleteEvent(event))
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 
     private void deleteEvent(FallEvent event) {
-        Intent intent = new Intent("com.example.duritor.DELETE_EVENT");
-        sendBroadcast(intent);
-
         historyRef.child(event.id).removeValue().addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-                Toast.makeText(HistoryActivity.this, R.string.history_delete_success, Toast.LENGTH_SHORT).show();
+                Toast.makeText(HistoryActivity.this, "🗑️ Event deleted", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(HistoryActivity.this, "Could not delete event", Toast.LENGTH_SHORT).show();
+                Toast.makeText(HistoryActivity.this, "Failed to delete event", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -145,12 +221,12 @@ public class HistoryActivity extends DrawerActivity {
 
         @Override
         public int getCount() {
-            return events.isEmpty() ? 1 : events.size();
+            return filteredEvents.isEmpty() ? 1 : filteredEvents.size();
         }
 
         @Override
         public Object getItem(int position) {
-            return events.isEmpty() ? null : events.get(position);
+            return filteredEvents.isEmpty() ? null : filteredEvents.get(position);
         }
 
         @Override
@@ -160,11 +236,13 @@ public class HistoryActivity extends DrawerActivity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            if (events.isEmpty()) {
+            if (filteredEvents.isEmpty()) {
                 TextView emptyView = new TextView(HistoryActivity.this);
-                emptyView.setText(R.string.history_empty);
+                emptyView.setText("📭 No events yet");
                 emptyView.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.text_secondary));
-                emptyView.setPadding(0, 24, 0, 24);
+                emptyView.setPadding(0, 40, 0, 40);
+                emptyView.setTextSize(16f);
+                emptyView.setGravity(View.TEXT_ALIGNMENT_CENTER);
                 return emptyView;
             }
 
@@ -178,26 +256,39 @@ public class HistoryActivity extends DrawerActivity {
                 holder = (ViewHolder) convertView.getTag();
             }
 
-            FallEvent event = events.get(position);
-            holder.alertText.setText("🚨 " + event.alert);
-            holder.dateText.setText("📅 " + event.date);
-            holder.timeText.setText("🕒 " + event.time);
-            holder.orchardText.setText("🌳 " + event.orchard);
-            holder.regionText.setText("📍 " + event.region);
-            holder.treeText.setText("🌴 " + event.tree);
+            FallEvent event = filteredEvents.get(position);
 
+            // Date Header
+            String formattedDate = formatDate(event.date);
+            holder.dateHeader.setText(formattedDate);
+
+            // Time
+            holder.timeText.setText(event.time);
+
+            // Alert
+            holder.alertText.setText(event.alert);
+
+            // Location: Orchard • Region
+            holder.locationText.setText(event.orchard + " • " + event.region);
+
+            // Tree
+            holder.treeText.setText(event.tree);
+
+            // Collect & Delete - Text Only
             if (event.collected) {
-                holder.statusText.setText("✅ " + getString(R.string.history_status_collected));
-                holder.statusText.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.primary));
+                holder.collectButton.setText("Collected");
+                holder.collectButton.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.text_hint));
                 holder.collectButton.setEnabled(false);
-                holder.collectButton.setAlpha(0.5f);
             } else {
-                holder.statusText.setText("⏳ " + getString(R.string.history_status_pending));
-                holder.statusText.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.text_secondary));
+                holder.collectButton.setText("Collect");
+                holder.collectButton.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.primary));
                 holder.collectButton.setEnabled(true);
-                holder.collectButton.setAlpha(1f);
             }
 
+            holder.collectButton.setOnClickListener(v -> collectEvent(event));
+            holder.deleteButton.setOnClickListener(v -> confirmDeleteEvent(event));
+
+            // Image
             if (event.photoUrl != null && !event.photoUrl.isEmpty() && !event.photoUrl.equals("null")) {
                 holder.historyImage.setVisibility(View.VISIBLE);
                 Glide.with(HistoryActivity.this)
@@ -210,36 +301,29 @@ public class HistoryActivity extends DrawerActivity {
                 holder.historyImage.setVisibility(View.GONE);
             }
 
-            holder.collectButton.setOnClickListener(v -> collectEvent(event));
-            holder.deleteButton.setOnClickListener(v -> confirmDeleteEvent(event));
-
             return convertView;
         }
     }
 
     private static class ViewHolder {
-        final TextView alertText;
-        final TextView dateText;
+        final TextView dateHeader;
         final TextView timeText;
-        final TextView orchardText;
-        final TextView regionText;
+        final TextView alertText;
+        final TextView locationText;
         final TextView treeText;
+        final TextView collectButton;
+        final TextView deleteButton;
         final ImageView historyImage;
-        final TextView statusText;
-        final MaterialButton collectButton;
-        final MaterialButton deleteButton;
 
         ViewHolder(View view) {
-            alertText = view.findViewById(R.id.historyAlert);
-            dateText = view.findViewById(R.id.historyDate);
+            dateHeader = view.findViewById(R.id.dateHeader);
             timeText = view.findViewById(R.id.historyTime);
-            orchardText = view.findViewById(R.id.historyOrchard);
-            regionText = view.findViewById(R.id.historyRegion);
+            alertText = view.findViewById(R.id.historyAlert);
+            locationText = view.findViewById(R.id.historyLocation);
             treeText = view.findViewById(R.id.historyTree);
+            collectButton = view.findViewById(R.id.collectButton);
+            deleteButton = view.findViewById(R.id.deleteButton);
             historyImage = view.findViewById(R.id.historyImage);
-            statusText = view.findViewById(R.id.historyStatus);
-            collectButton = view.findViewById(R.id.itemCollectButton);
-            deleteButton = view.findViewById(R.id.itemDeleteButton);
         }
     }
 

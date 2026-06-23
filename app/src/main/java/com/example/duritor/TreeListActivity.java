@@ -1,17 +1,21 @@
 package com.example.duritor;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -25,89 +29,67 @@ import java.util.Map;
 
 public class TreeListActivity extends DrawerActivity {
 
-    private Spinner treeOrchardFilterSpinner;
-    private Button addTreeButton;
+    private EditText searchEditText;
+    private FloatingActionButton addTreeButton;
     private ListView treeListView;
     private DatabaseReference orchardsRef;
     private DatabaseReference treesRef;
-    private List<String> orchardIds;
-    private List<String> orchardNames;
     private Map<String, String> orchardNameById;
-    private List<String> treeIds;
-    private List<String> treeDisplay;
-    private List<Map<String, Object>> allTreeData;
-    private ArrayAdapter<String> treeAdapter;
-    private ArrayAdapter<String> orchardFilterAdapter;
+
+    private List<TreeDisplayItem> masterTreeList;
+    private List<TreeDisplayItem> filteredTreeList;
+    private TreeAdapter treeAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setupDrawerShell(R.layout.activity_tree_list, R.id.nav_trees, R.string.title_trees);
 
-        treeOrchardFilterSpinner = findViewById(R.id.treeOrchardFilterSpinner);
+        searchEditText = findViewById(R.id.searchEditText);
         addTreeButton = findViewById(R.id.addTreeButton);
         treeListView = findViewById(R.id.treeListView);
 
         orchardsRef = FirebaseDatabase.getInstance().getReference("orchards");
         treesRef = FirebaseDatabase.getInstance().getReference("trees");
 
-        orchardIds = new ArrayList<>();
-        orchardNames = new ArrayList<>();
         orchardNameById = new HashMap<>();
-        treeIds = new ArrayList<>();
-        treeDisplay = new ArrayList<>();
-        allTreeData = new ArrayList<>();
+        masterTreeList = new ArrayList<>();
+        filteredTreeList = new ArrayList<>();
 
-        treeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, treeDisplay);
+        treeAdapter = new TreeAdapter();
         treeListView.setAdapter(treeAdapter);
-
-        orchardFilterAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, orchardNames);
-        orchardFilterAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        treeOrchardFilterSpinner.setAdapter(orchardFilterAdapter);
-
-        treeOrchardFilterSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
-                filterTreeList(position);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                filterTreeList(0);
-            }
-        });
 
         addTreeButton.setOnClickListener(v -> startActivity(new Intent(TreeListActivity.this, TreeFormActivity.class)));
 
-        treeListView.setOnItemClickListener((parent, view, position, id) -> showTreeOptions(position));
-
         loadOrchards();
         loadTrees();
+
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                filterTreeList(s.toString());
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
     }
 
     private void loadOrchards() {
         orchardsRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                orchardIds.clear();
-                orchardNames.clear();
                 orchardNameById.clear();
-                orchardNames.add("All Orchards");
-                orchardIds.add("");
-
                 for (DataSnapshot child : snapshot.getChildren()) {
                     String orchardId = child.getKey();
                     String name = child.child("name").getValue(String.class);
                     if (name == null || name.isEmpty()) {
                         name = "Unnamed Orchard";
                     }
-                    orchardIds.add(orchardId);
-                    orchardNames.add(name);
                     orchardNameById.put(orchardId, name);
                 }
-                orchardFilterAdapter.notifyDataSetChanged();
             }
-
             @Override
             public void onCancelled(DatabaseError error) {
                 Toast.makeText(TreeListActivity.this, "Failed to load orchards", Toast.LENGTH_SHORT).show();
@@ -119,13 +101,12 @@ public class TreeListActivity extends DrawerActivity {
         treesRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                allTreeData.clear();
-                treeIds.clear();
-                treeDisplay.clear();
+                masterTreeList.clear();
 
                 for (DataSnapshot child : snapshot.getChildren()) {
-                        String treeId = child.getKey();
+                    String treeId = child.getKey();
                     if (treeId == null) continue;
+
                     String name = child.child("name").getValue(String.class);
                     String variety = child.child("durianVariety").getValue(String.class);
                     String orchardId = child.child("orchardId").getValue(String.class);
@@ -134,29 +115,18 @@ public class TreeListActivity extends DrawerActivity {
                     if (regionName == null || regionName.isEmpty()) {
                         regionName = "Unknown Region";
                     }
-                    if (name == null) {
-                        name = "Unnamed Tree";
-                    }
-                    if (variety == null || variety.isEmpty()) {
-                        variety = "Unknown Variety";
-                    }
-                    String display = name + " - " + variety + " (" + orchardName + ", " + regionName + ")";
-                    Map<String, Object> tree = new HashMap<>();
-                    tree.put("name", name);
-                    tree.put("treeId", treeId);
-                    tree.put("durianVariety", variety);
-                    tree.put("age", child.child("age").getValue(String.class));
-                    tree.put("orchardId", orchardId);
-                    tree.put("orchardName", orchardName);
-                    tree.put("regionName", regionName);
-                    tree.put("notes", child.child("notes").getValue(String.class));
-                    treeIds.add(treeId);
-                    allTreeData.add(tree);
-                    treeDisplay.add(display);
-                }
-                filterTreeList(treeOrchardFilterSpinner.getSelectedItemPosition());
-            }
 
+                    TreeDisplayItem item = new TreeDisplayItem();
+                    item.treeId = treeId;
+                    item.name = name != null ? name : "Unnamed Tree";
+                    item.variety = variety != null ? variety : "Unknown Variety";
+                    item.orchardName = orchardName;
+                    item.regionName = regionName;
+
+                    masterTreeList.add(item);
+                }
+                filterTreeList(searchEditText.getText().toString());
+            }
             @Override
             public void onCancelled(DatabaseError error) {
                 Toast.makeText(TreeListActivity.this, "Failed to load trees", Toast.LENGTH_SHORT).show();
@@ -164,55 +134,19 @@ public class TreeListActivity extends DrawerActivity {
         });
     }
 
-    private void filterTreeList(int position) {
-        if (position < 0 || position >= orchardIds.size()) {
-            position = 0;
-        }
-        String selectedOrchardId = orchardIds.get(position);
-        treeDisplay.clear();
-
-        for (int i = 0; i < allTreeData.size(); i++) {
-            Map<String, Object> tree = allTreeData.get(i);
-            String orchardId = (String) tree.get("orchardId");
-            if (selectedOrchardId.isEmpty() || selectedOrchardId.equals(orchardId)) {
-                String name = (String) tree.get("name");
-                String variety = (String) tree.get("durianVariety");
-                String orchardName = (String) tree.get("orchardName");
-                treeDisplay.add(name + " - " + variety + " (" + orchardName + ")");
+    private void filterTreeList(String query) {
+        filteredTreeList.clear();
+        if (query.isEmpty()) {
+            filteredTreeList.addAll(masterTreeList);
+        } else {
+            for (TreeDisplayItem item : masterTreeList) {
+                if (item.name.toLowerCase().contains(query.toLowerCase()) ||
+                        item.variety.toLowerCase().contains(query.toLowerCase())) {
+                    filteredTreeList.add(item);
+                }
             }
         }
         treeAdapter.notifyDataSetChanged();
-    }
-
-    private void showTreeOptions(int position) {
-        String selectedOrchardId = orchardIds.get(treeOrchardFilterSpinner.getSelectedItemPosition());
-        int index = position;
-        if (!selectedOrchardId.isEmpty()) {
-            List<Integer> filtered = new ArrayList<>();
-            for (int i = 0; i < allTreeData.size(); i++) {
-                if (selectedOrchardId.equals(allTreeData.get(i).get("orchardId"))) {
-                    filtered.add(i);
-                }
-            }
-            if (position >= 0 && position < filtered.size()) {
-                index = filtered.get(position);
-            }
-        }
-        String treeId = treeIds.get(index);
-        String treeName = treeDisplay.get(position);
-
-        new AlertDialog.Builder(this)
-                .setTitle(treeName)
-                .setItems(new CharSequence[]{"Edit", "Delete"}, (dialog, which) -> {
-                    if (which == 0) {
-                        Intent intent = new Intent(TreeListActivity.this, TreeFormActivity.class);
-                        intent.putExtra("treeId", treeId);
-                        startActivity(intent);
-                    } else {
-                        confirmDelete(treeId);
-                    }
-                })
-                .show();
     }
 
     private void confirmDelete(String treeId) {
@@ -222,5 +156,50 @@ public class TreeListActivity extends DrawerActivity {
                 .setPositiveButton("Delete", (dialog, which) -> treesRef.child(treeId).removeValue())
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private class TreeAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return filteredTreeList.size(); }
+        @Override
+        public Object getItem(int position) { return filteredTreeList.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = LayoutInflater.from(TreeListActivity.this)
+                        .inflate(R.layout.tree_item, parent, false);
+            }
+
+            TreeDisplayItem item = filteredTreeList.get(position);
+
+            TextView nameText = convertView.findViewById(R.id.treeNameText);
+            TextView detailsText = convertView.findViewById(R.id.treeDetailsText);
+            TextView editBtn = convertView.findViewById(R.id.editButton);
+            TextView deleteBtn = convertView.findViewById(R.id.deleteButton);
+
+            nameText.setText(item.name + " - " + item.variety);
+            detailsText.setText(item.orchardName + " • " + item.regionName);
+
+            editBtn.setOnClickListener(v -> {
+                Intent intent = new Intent(TreeListActivity.this, TreeFormActivity.class);
+                intent.putExtra("treeId", item.treeId);
+                startActivity(intent);
+            });
+
+            deleteBtn.setOnClickListener(v -> confirmDelete(item.treeId));
+
+            return convertView;
+        }
+    }
+
+    private static class TreeDisplayItem {
+        String treeId;
+        String name;
+        String variety;
+        String orchardName;
+        String regionName;
     }
 }

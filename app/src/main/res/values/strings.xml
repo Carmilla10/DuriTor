@@ -32,9 +32,9 @@
     <string name="history_delete_success">Fall event deleted.</string>
     <string name="history_empty">No fall events yet.</string>
     <string name="title_map">Map</string>
-    <string name="title_orchards">Orchards</string>
-    <string name="title_regions">Regions</string>
-    <string name="title_trees">Trees</string>
+    <string name="title_orchards">Add Orchards</string>
+    <string name="title_regions">Add Regions</string>
+    <string name="title_trees">Add Trees</string>
     <string name="title_profile">Profile</string>
     <string name="title_add_orchard">Add orchard</string>
     <string name="title_edit_orchard">Edit orchard</string>
@@ -56,4 +56,5 @@
     <string name="analytics_total_regions">Regions</string>
     <string name="analytics_no_data">No fall data yet</string>
     <string name="regions_label">Regions</string>
+    <string name="title_orchard_details">Orchard Details</string>
 </resources>

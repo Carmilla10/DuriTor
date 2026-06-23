@@ -111,8 +111,9 @@ public class MapActivity extends DrawerActivity {
     }
 
     private void setLocationLabels(double latitude, double longitude) {
-        mapLatitudeText.setText("Latitude: " + latitude);
-        mapLongitudeText.setText("Longitude: " + longitude);
+        // Show only the pure numbers
+        mapLatitudeText.setText(String.valueOf(latitude));
+        mapLongitudeText.setText(String.valueOf(longitude));
     }
 
     private void openNavigation() {
@@ -126,16 +127,13 @@ public class MapActivity extends DrawerActivity {
         orchardsRef.child(selectedId).addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                String lat = snapshot.child("lat").getValue(String.class);
-                String lng = snapshot.child("lng").getValue(String.class);
-                String name = snapshot.child("name").getValue(String.class);
-                String location = snapshot.child("location").getValue(String.class);
+                String lat = getValueAsString(snapshot.child("lat"));
+                String lng = getValueAsString(snapshot.child("lng"));
+                String name = getValueAsString(snapshot.child("name"));
 
                 if (lat != null && lng != null && !lat.isEmpty() && !lng.isEmpty()) {
-                    String uri = "google.navigation:q=" + lat + "," + lng;
-                    startNavigation(uri);
-                } else if (location != null && !location.isEmpty()) {
-                    String uri = "geo:0,0?q=" + Uri.encode(location + " " + (name != null ? name : "Orchard"));
+                    String label = name != null && !name.isEmpty() ? name : "Orchard";
+                    String uri = "geo:0,0?q=" + lat + "," + lng + "(" + Uri.encode(label) + ")";
                     startNavigation(uri);
                 } else {
                     Toast.makeText(MapActivity.this, "Orchard has no coordinates.", Toast.LENGTH_SHORT).show();
@@ -149,13 +147,17 @@ public class MapActivity extends DrawerActivity {
         });
     }
 
+    private String getValueAsString(DataSnapshot snapshot) {
+        Object value = snapshot.getValue();
+        return value != null ? value.toString() : null;
+    }
+
     private void startNavigation(String uriString) {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uriString));
-        intent.setPackage("com.google.android.apps.maps");
         if (intent.resolveActivity(getPackageManager()) != null) {
             startActivity(intent);
         } else {
-            Toast.makeText(this, "Google Maps is not installed.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No map application found. Please install Google Maps.", Toast.LENGTH_SHORT).show();
         }
     }
 

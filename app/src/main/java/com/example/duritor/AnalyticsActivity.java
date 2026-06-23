@@ -28,17 +28,12 @@ import java.util.Map;
 public class AnalyticsActivity extends DrawerActivity {
 
     private TextView totalFallsText;
-    private TextView todayFallsText;
     private TextView collectedText;
     private TextView pendingText;
     private TextView collectionRateText;
     private TextView farmSummaryText;
-    private LinearLayout orchardBarsContainer;
     private LinearLayout regionBarsContainer;
-    private LinearLayout treeBarsContainer;
-    private TextView orchardBarsEmpty;
     private TextView regionBarsEmpty;
-    private TextView treeBarsEmpty;
 
     private int orchardCount;
     private int regionCount;
@@ -51,56 +46,53 @@ public class AnalyticsActivity extends DrawerActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        setupDrawerShell(
-                R.layout.activity_analytics,
-                R.id.nav_analytics,
-                R.string.title_analytics
-        );
+        setupDrawerShell(R.layout.activity_analytics, R.id.nav_analytics, R.string.title_analytics);
 
         totalFallsText = findViewById(R.id.totalFallsText);
-        todayFallsText = findViewById(R.id.todayFallsText);
         collectedText = findViewById(R.id.collectedText);
         pendingText = findViewById(R.id.pendingText);
         collectionRateText = findViewById(R.id.collectionRateText);
         farmSummaryText = findViewById(R.id.farmSummaryText);
-        orchardBarsContainer = findViewById(R.id.orchardBarsContainer);
         regionBarsContainer = findViewById(R.id.regionBarsContainer);
-        treeBarsContainer = findViewById(R.id.treeBarsContainer);
-        orchardBarsEmpty = findViewById(R.id.orchardBarsEmpty);
         regionBarsEmpty = findViewById(R.id.regionBarsEmpty);
-        treeBarsEmpty = findViewById(R.id.treeBarsEmpty);
 
         loadAnalytics();
     }
 
     private void loadAnalytics() {
         FirebaseDatabase database = FirebaseDatabase.getInstance();
-        database.getReference("orchards").addListenerForSingleValueEvent(new SimpleCounterListener() {
+
+        database.getReference("orchards").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 orchardCount = (int) snapshot.getChildrenCount();
                 orchardsLoaded = true;
                 maybeUpdateSummary();
             }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
         });
 
-        database.getReference("regions").addListenerForSingleValueEvent(new SimpleCounterListener() {
+        database.getReference("regions").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 regionCount = (int) snapshot.getChildrenCount();
                 regionsLoaded = true;
                 maybeUpdateSummary();
             }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
         });
 
-        database.getReference("trees").addListenerForSingleValueEvent(new SimpleCounterListener() {
+        database.getReference("trees").addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 treeCount = (int) snapshot.getChildrenCount();
                 treesLoaded = true;
                 maybeUpdateSummary();
             }
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
         });
 
         database.getReference("fallEvents").addListenerForSingleValueEvent(new ValueEventListener() {
@@ -109,21 +101,12 @@ public class AnalyticsActivity extends DrawerActivity {
                 String today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
 
                 int total = 0;
-                int todayCount = 0;
                 int collected = 0;
                 int pending = 0;
-
-                Map<String, Integer> orchardFalls = new HashMap<>();
                 Map<String, Integer> regionFalls = new HashMap<>();
-                Map<String, Integer> treeFalls = new HashMap<>();
 
                 for (DataSnapshot child : snapshot.getChildren()) {
                     total++;
-
-                    String date = child.child("date").getValue(String.class);
-                    if (date != null && date.contains(today)) {
-                        todayCount++;
-                    }
 
                     Boolean isCollected = child.child("collected").getValue(Boolean.class);
                     if (isCollected != null && isCollected) {
@@ -132,36 +115,21 @@ public class AnalyticsActivity extends DrawerActivity {
                         pending++;
                     }
 
-                    String orchard = child.child("orchardName").getValue(String.class);
-                    if (orchard == null || orchard.isEmpty()) {
-                        orchard = "Unknown orchard";
-                    }
-                    orchardFalls.put(orchard, orchardFalls.getOrDefault(orchard, 0) + 1);
-
                     String region = child.child("regionName").getValue(String.class);
                     if (region == null || region.isEmpty()) {
-                        region = "Unknown region";
+                        region = "Unknown Region";
                     }
                     regionFalls.put(region, regionFalls.getOrDefault(region, 0) + 1);
-
-                    String tree = child.child("treeName").getValue(String.class);
-                    if (tree == null || tree.isEmpty()) {
-                        tree = "Unknown tree";
-                    }
-                    treeFalls.put(tree, treeFalls.getOrDefault(tree, 0) + 1);
                 }
 
                 totalFallsText.setText(String.valueOf(total));
-                todayFallsText.setText(String.valueOf(todayCount));
                 collectedText.setText(String.valueOf(collected));
                 pendingText.setText(String.valueOf(pending));
 
                 int rate = total == 0 ? 0 : Math.round((collected * 100f) / total);
                 collectionRateText.setText(rate + "%");
 
-                renderBars(orchardBarsContainer, orchardBarsEmpty, orchardFalls);
                 renderBars(regionBarsContainer, regionBarsEmpty, regionFalls);
-                renderBars(treeBarsContainer, treeBarsEmpty, treeFalls);
 
                 fallsLoaded = true;
                 maybeUpdateSummary();
@@ -178,12 +146,9 @@ public class AnalyticsActivity extends DrawerActivity {
         if (!orchardsLoaded || !regionsLoaded || !treesLoaded || !fallsLoaded) {
             return;
         }
-        farmSummaryText.setText(getString(
-                R.string.analytics_farm_summary,
-                orchardCount,
-                regionCount,
-                treeCount
-        ));
+        farmSummaryText.setText("• Monitoring " + orchardCount + " orchards, " +
+                regionCount + " regions and " + treeCount + " trees.\n" +
+                "• Collection rate is " + collectionRateText.getText() + ".");
     }
 
     private void renderBars(LinearLayout container, TextView emptyView, Map<String, Integer> counts) {
@@ -224,12 +189,6 @@ public class AnalyticsActivity extends DrawerActivity {
             });
 
             container.addView(row);
-        }
-    }
-
-    private abstract static class SimpleCounterListener implements ValueEventListener {
-        @Override
-        public void onCancelled(@NonNull DatabaseError error) {
         }
     }
 }

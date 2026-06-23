@@ -7,8 +7,10 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -17,7 +19,6 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +29,9 @@ public class TreeFormActivity extends DrawerActivity {
     private Spinner treeRegionSpinner;
     private EditText treeIdEdit;
     private EditText treeVarietyEdit;
-    private EditText treeAgeEdit;
     private EditText treeNotesEdit;
     private Button saveTreeButton;
+    private TextView cancelButton;
     private DatabaseReference orchardsRef;
     private DatabaseReference regionsRef;
     private DatabaseReference treesRef;
@@ -58,9 +59,9 @@ public class TreeFormActivity extends DrawerActivity {
         treeRegionSpinner = findViewById(R.id.treeRegionSpinner);
         treeIdEdit = findViewById(R.id.treeIdEdit);
         treeVarietyEdit = findViewById(R.id.treeVarietyEdit);
-        treeAgeEdit = findViewById(R.id.treeAgeEdit);
         treeNotesEdit = findViewById(R.id.treeNotesEdit);
         saveTreeButton = findViewById(R.id.saveTreeButton);
+        cancelButton = findViewById(R.id.cancelButton);
 
         orchardsRef = FirebaseDatabase.getInstance().getReference("orchards");
         regionsRef = FirebaseDatabase.getInstance().getReference("regions");
@@ -92,6 +93,15 @@ public class TreeFormActivity extends DrawerActivity {
             public void onNothingSelected(AdapterView<?> parent) {
                 filterRegionsForOrchard(0);
             }
+        });
+
+        cancelButton.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Cancel")
+                    .setMessage("Are you sure you want to cancel? Changes will not be saved.")
+                    .setPositiveButton("Yes", (dialog, which) -> finish())
+                    .setNegativeButton("No", null)
+                    .show();
         });
 
         loadOrchards();
@@ -193,7 +203,6 @@ public class TreeFormActivity extends DrawerActivity {
                 if (!snapshot.exists()) return;
                 treeIdEdit.setText(snapshot.child("treeId").getValue(String.class));
                 treeVarietyEdit.setText(snapshot.child("durianVariety").getValue(String.class));
-                treeAgeEdit.setText(snapshot.child("age").getValue(String.class));
                 treeNotesEdit.setText(snapshot.child("notes").getValue(String.class));
                 treeRegionId = snapshot.child("regionId").getValue(String.class);
                 String orchardId = snapshot.child("orchardId").getValue(String.class);
@@ -216,7 +225,6 @@ public class TreeFormActivity extends DrawerActivity {
     private void saveTree() {
         String treeCode = treeIdEdit.getText().toString().trim();
         String variety = treeVarietyEdit.getText().toString().trim();
-        String age = treeAgeEdit.getText().toString().trim();
         String notes = treeNotesEdit.getText().toString().trim();
         int orchardPosition = treeOrchardSpinner.getSelectedItemPosition();
 
@@ -251,7 +259,6 @@ public class TreeFormActivity extends DrawerActivity {
         update.put("treeId", treeCode);
         update.put("name", treeCode);
         update.put("durianVariety", variety);
-        update.put("age", age);
         update.put("notes", notes);
         update.put("orchardId", orchardId);
         update.put("orchardName", orchardName);

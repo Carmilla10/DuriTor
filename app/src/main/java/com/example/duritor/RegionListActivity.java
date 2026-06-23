@@ -2,13 +2,20 @@ package com.example.duritor;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -16,104 +23,102 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class RegionListActivity extends DrawerActivity {
 
-    private Button addRegionButton;
     private ListView regionListView;
+    private EditText searchEditText;
+    private FloatingActionButton addRegionButton;
+
     private DatabaseReference regionRef;
-    private List<String> regionIds;
-    private List<String> regionDisplay;
-    private Map<String, Map<String, Object>> regionMap;
-    private ArrayAdapter<String> adapter;
+    private List<RegionItem> masterRegionList;
+    private List<RegionItem> filteredRegionList;
+    private RegionAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setupDrawerShell(R.layout.activity_region_list, R.id.nav_regions, R.string.title_regions);
 
-        addRegionButton = findViewById(R.id.addRegionButton);
         regionListView = findViewById(R.id.regionListView);
+        searchEditText = findViewById(R.id.searchEditText);
+        addRegionButton = findViewById(R.id.addRegionButton);
 
-        regionIds = new ArrayList<>();
-        regionDisplay = new ArrayList<>();
-        regionMap = new HashMap<>();
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, regionDisplay);
+        masterRegionList = new ArrayList<>();
+        filteredRegionList = new ArrayList<>();
+        adapter = new RegionAdapter();
         regionListView.setAdapter(adapter);
 
         regionRef = FirebaseDatabase.getInstance().getReference("regions");
 
-        addRegionButton.setOnClickListener(v -> startActivity(new Intent(RegionListActivity.this, RegionFormActivity.class)));
-
-        regionListView.setOnItemClickListener((parent, view, position, id) -> showOptionsDialog(position));
+        addRegionButton.setOnClickListener(v ->
+                startActivity(new Intent(RegionListActivity.this, RegionFormActivity.class))
+        );
 
         loadRegions();
+
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                filterList(s.toString());
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
     }
 
     private void loadRegions() {
         regionRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot snapshot) {
-                regionIds.clear();
-                regionDisplay.clear();
-                regionMap.clear();
-
+                masterRegionList.clear();
                 for (DataSnapshot child : snapshot.getChildren()) {
-                    String regionId = child.getKey();
-                    if (regionId == null) continue;
+                    String id = child.getKey();
                     String name = child.child("name").getValue(String.class);
+                    String description = child.child("description").getValue(String.class);
                     String orchardName = child.child("orchardName").getValue(String.class);
-                    if (name == null || name.isEmpty()) {
-                        name = "Unnamed Region";
-                    }
-                    String displayText = name;
-                    if (orchardName != null && !orchardName.isEmpty()) {
-                        displayText += " (" + orchardName + ")";
-                    }
-                    regionIds.add(regionId);
-                    regionDisplay.add(displayText);
-                    Map<String, Object> region = new HashMap<>();
-                    region.put("name", name);
-                    region.put("orchardId", child.child("orchardId").getValue(String.class));
-                    region.put("orchardName", orchardName != null ? orchardName : "");
-                    region.put("description", child.child("description").getValue(String.class));
-                    regionMap.put(regionId, region);
-                }
-                adapter.notifyDataSetChanged();
-            }
 
+                    RegionItem item = new RegionItem();
+                    item.id = id;
+                    item.name = name != null ? name : "Unnamed Region";
+                    item.description = description != null ? description : "";
+                    item.orchardName = orchardName != null ? orchardName : "";
+                    item.treeCount = 0;
+
+                    masterRegionList.add(item);
+                }
+                filterList(searchEditText.getText().toString());
+            }
             @Override
             public void onCancelled(DatabaseError error) {
-                Toast.makeText(RegionListActivity.this, "Failed to load regions: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(RegionListActivity.this, "Failed to load regions", Toast.LENGTH_LONG).show();
             }
         });
     }
 
-    private void showOptionsDialog(int position) {
-        String regionId = regionIds.get(position);
-        String regionName = regionDisplay.get(position);
-
-        new AlertDialog.Builder(this)
-                .setTitle(regionName)
-                .setItems(new CharSequence[]{"Edit", "Delete"}, (dialog, which) -> {
-                    if (which == 0) {
-                        Intent intent = new Intent(RegionListActivity.this, RegionFormActivity.class);
-                        intent.putExtra("regionId", regionId);
-                        startActivity(intent);
-                    } else {
-                        confirmDelete(regionId);
-                    }
-                })
-                .show();
+    private void filterList(String query) {
+        filteredRegionList.clear();
+        if (query.isEmpty()) {
+            filteredRegionList.addAll(masterRegionList);
+        } else {
+            for (RegionItem item : masterRegionList) {
+                if (item.name.toLowerCase().contains(query.toLowerCase()) ||
+                        item.description.toLowerCase().contains(query.toLowerCase()) ||
+                        item.orchardName.toLowerCase().contains(query.toLowerCase())) {
+                    filteredRegionList.add(item);
+                }
+            }
+        }
+        adapter.notifyDataSetChanged();
     }
 
     private void confirmDelete(String regionId) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Region")
-                .setMessage("Remove this region and keep associated trees?")
+                .setMessage("Are you sure you want to delete this region?")
                 .setPositiveButton("Delete", (dialog, which) -> deleteRegion(regionId))
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -127,5 +132,56 @@ public class RegionListActivity extends DrawerActivity {
                 Toast.makeText(RegionListActivity.this, "Delete failed", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private class RegionAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return filteredRegionList.size(); }
+        @Override
+        public Object getItem(int position) { return filteredRegionList.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = LayoutInflater.from(RegionListActivity.this)
+                        .inflate(R.layout.region_item, parent, false);
+            }
+
+            RegionItem item = filteredRegionList.get(position);
+
+            TextView nameText = convertView.findViewById(R.id.regionNameText);
+            TextView descText = convertView.findViewById(R.id.regionDescriptionText);
+            TextView treeText = convertView.findViewById(R.id.regionTreeCount);
+
+            // Buttons
+            TextView editBtn = convertView.findViewById(R.id.editButton);
+            TextView deleteBtn = convertView.findViewById(R.id.deleteButton);
+
+            nameText.setText(item.name);
+            descText.setText(item.description);
+            treeText.setText("🌳 " + item.treeCount + " Trees");
+
+            // Edit Button
+            editBtn.setOnClickListener(v -> {
+                Intent intent = new Intent(RegionListActivity.this, RegionFormActivity.class);
+                intent.putExtra("regionId", item.id);
+                startActivity(intent);
+            });
+
+            // Delete Button
+            deleteBtn.setOnClickListener(v -> confirmDelete(item.id));
+
+            return convertView;
+        }
+    }
+
+    private static class RegionItem {
+        String id;
+        String name;
+        String description;
+        String orchardName;
+        int treeCount;
     }
 }

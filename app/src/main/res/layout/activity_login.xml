@@ -27,7 +27,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginTop="-15dp">
+                android:layout_marginTop="-20dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -188,7 +188,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="end"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="-8dp"
                     android:text="Forgot password?"
                     android:textColor="@color/primary"
                     android:textSize="13sp"
