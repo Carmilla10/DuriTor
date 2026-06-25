@@ -15,6 +15,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -204,7 +205,7 @@ public class MainActivity extends DrawerActivity {
                 latestTimestampKey = sortKey;
             }
         }
-        
+
         // If current event is collected, find the next latest uncollected event
         if (latest != null && currentDisplayedEventId.equals(latest.getKey())) {
             Boolean isCollected = latest.child("collected").getValue(Boolean.class);
@@ -212,7 +213,7 @@ public class MainActivity extends DrawerActivity {
                 // Current event is collected, find next one
                 DataSnapshot nextLatest = null;
                 String nextLatestTimestampKey = null;
-                
+
                 for (DataSnapshot child : snapshot.getChildren()) {
                     Boolean collected = child.child("collected").getValue(Boolean.class);
                     if (collected == null || !collected) { // Skip collected events
@@ -220,7 +221,7 @@ public class MainActivity extends DrawerActivity {
                         String time = child.child("time").getValue(String.class);
                         if (date == null) date = "";
                         if (time == null) time = "";
-                        
+
                         String sortKey = date + " " + time;
                         if (nextLatest == null || sortKey.compareTo(nextLatestTimestampKey) > 0) {
                             nextLatest = child;
@@ -228,12 +229,12 @@ public class MainActivity extends DrawerActivity {
                         }
                     }
                 }
-                
+
                 // If no uncollected events, show the latest anyway
                 return nextLatest != null ? nextLatest : latest;
             }
         }
-        
+
         return latest;
     }
 
@@ -278,19 +279,44 @@ public class MainActivity extends DrawerActivity {
             regionText.setText("📍 " + displayRegion);
             orchardText.setText("🌳 " + displayOrchard);
 
-            // Load latest image with cache busting to always show fresh images
-            if (finalPhotoUrl != null && !finalPhotoUrl.isEmpty() && !finalPhotoUrl.equals("null") && !finalPhotoUrl.equals("")) {
-                // Add timestamp to URL to force fresh load
-                String bustedUrl = finalPhotoUrl + "?t=" + System.currentTimeMillis();
-                Glide.with(MainActivity.this)
-                        .load(bustedUrl)
-                        .skipMemoryCache(true)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE)
-                        .placeholder(android.R.drawable.ic_menu_camera)
-                        .error(android.R.drawable.ic_menu_camera)
-                        .centerCrop()
-                        .into(capturedImageView);
+            // Load latest image with improved cache busting and error handling
+            if (finalPhotoUrl != null && !finalPhotoUrl.trim().isEmpty() && !finalPhotoUrl.equals("null")) {
+                try {
+                    // Add timestamp to URL to force fresh load
+                    String bustedUrl = finalPhotoUrl.contains("?")
+                            ? finalPhotoUrl + "&t=" + System.currentTimeMillis()
+                            : finalPhotoUrl + "?t=" + System.currentTimeMillis();
+
+                    Glide.with(MainActivity.this)
+                            .load(bustedUrl)
+                            .skipMemoryCache(true)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .placeholder(android.R.drawable.ic_menu_camera)
+                            .error(android.R.drawable.ic_menu_camera)
+                            .listener(new com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable>() {
+                                @Override
+                                public boolean onLoadFailed(@Nullable com.bumptech.glide.load.engine.GlideException e, Object model, com.bu
+                                        mptech.glide.request.target.Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
+                                    Log.e("MainActivity", "Image load failed: " + finalPhotoUrl, e);
+                                    return false;
+                                }
+
+                                @Override
+                                public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, com.bumptech.glid
+                                        e.request.target.Target<android.graphics.drawable.Drawable> target, com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource)
+                                {
+                                    Log.d("MainActivity", "Image loaded successfully from: " + dataSource);
+                                    return false;
+                                }
+                            })
+                            .centerCrop()
+                            .into(capturedImageView);
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Exception loading image", e);
+                    capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
+                }
             } else {
+                Log.w("MainActivity", "Invalid photoUrl: " + finalPhotoUrl);
                 capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
             }
 

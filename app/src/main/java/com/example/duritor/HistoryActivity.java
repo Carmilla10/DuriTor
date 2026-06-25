@@ -16,6 +16,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -292,10 +293,17 @@ public class HistoryActivity extends DrawerActivity {
             holder.collectButton.setOnClickListener(v -> collectEvent(event));
             holder.deleteButton.setOnClickListener(v -> confirmDeleteEvent(event));
 
+            // FIXED: Add cache busting to fetch latest images
             if (event.photoUrl != null && !event.photoUrl.isEmpty() && !event.photoUrl.equals("null")) {
                 holder.historyImage.setVisibility(View.VISIBLE);
+
+                // Add timestamp to URL to force fresh load (matches MainActivity implementation)
+                String bustedUrl = event.photoUrl + "?t=" + System.currentTimeMillis();
+
                 Glide.with(HistoryActivity.this)
-                        .load(event.photoUrl)
+                        .load(bustedUrl)
+                        .skipMemoryCache(true)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
                         .placeholder(android.R.drawable.ic_menu_camera)
                         .error(android.R.drawable.ic_menu_camera)
                         .centerCrop()
