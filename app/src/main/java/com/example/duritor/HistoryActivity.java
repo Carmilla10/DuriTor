@@ -136,8 +136,11 @@ public class HistoryActivity extends DrawerActivity {
                     event.tree = valueOrDefault(child.child("treeName").getValue(String.class),
                             valueOrDefault(child.child("treeId").getValue(String.class), "Unknown Tree"));
                     event.photoUrl = child.child("photoUrl").getValue(String.class);
+
+                    // SAFELY READ COLLECTED STATUS
                     Boolean collected = child.child("collected").getValue(Boolean.class);
                     event.collected = collected != null && collected;
+
                     events.add(event);
                 }
 
@@ -182,6 +185,9 @@ public class HistoryActivity extends DrawerActivity {
             return;
         }
 
+        // Prevent multiple clicks
+        event.collected = true;
+
         String collectedAt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 .format(new Date());
 
@@ -189,13 +195,21 @@ public class HistoryActivity extends DrawerActivity {
         updates.put("collected", true);
         updates.put("collectedAt", collectedAt);
 
-        historyRef.child(event.id).updateChildren(updates).addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                Toast.makeText(HistoryActivity.this, "✅ Marked as collected!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(HistoryActivity.this, "Failed to mark as collected", Toast.LENGTH_SHORT).show();
-            }
-        });
+        // Update Firebase with proper error handling
+        historyRef.child(event.id).updateChildren(updates)
+                .addOnSuccessListener(aVoid -> {
+                    if (!isDestroyed() && !isFinishing()) {
+                        Toast.makeText(HistoryActivity.this, "✅ Marked as collected!", Toast.LENGTH_SHORT).show();
+                        runOnUiThread(() -> applyFilter());
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    event.collected = false; // Revert on failure
+                    if (!isDestroyed() && !isFinishing()) {
+                        Toast.makeText(HistoryActivity.this, "Failed to collect: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        runOnUiThread(() -> applyFilter());
+                    }
+                });
     }
 
     private void confirmDeleteEvent(FallEvent event) {
@@ -258,23 +272,13 @@ public class HistoryActivity extends DrawerActivity {
 
             FallEvent event = filteredEvents.get(position);
 
-            // Date Header
             String formattedDate = formatDate(event.date);
             holder.dateHeader.setText(formattedDate);
 
-            // Time
-            holder.timeText.setText(event.time);
+            holder.historyLocation.setText(event.orchard + " • " + event.region);
+            holder.historyTime.setText("Time: " + event.time);
+            holder.historyTree.setText("Tree: " + event.tree);
 
-            // Alert
-            holder.alertText.setText(event.alert);
-
-            // Location: Orchard • Region
-            holder.locationText.setText(event.orchard + " • " + event.region);
-
-            // Tree
-            holder.treeText.setText(event.tree);
-
-            // Collect & Delete - Text Only
             if (event.collected) {
                 holder.collectButton.setText("Collected");
                 holder.collectButton.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.text_hint));
@@ -288,7 +292,6 @@ public class HistoryActivity extends DrawerActivity {
             holder.collectButton.setOnClickListener(v -> collectEvent(event));
             holder.deleteButton.setOnClickListener(v -> confirmDeleteEvent(event));
 
-            // Image
             if (event.photoUrl != null && !event.photoUrl.isEmpty() && !event.photoUrl.equals("null")) {
                 holder.historyImage.setVisibility(View.VISIBLE);
                 Glide.with(HistoryActivity.this)
@@ -307,20 +310,18 @@ public class HistoryActivity extends DrawerActivity {
 
     private static class ViewHolder {
         final TextView dateHeader;
-        final TextView timeText;
-        final TextView alertText;
-        final TextView locationText;
-        final TextView treeText;
+        final TextView historyLocation;
+        final TextView historyTime;
+        final TextView historyTree;
         final TextView collectButton;
         final TextView deleteButton;
         final ImageView historyImage;
 
         ViewHolder(View view) {
             dateHeader = view.findViewById(R.id.dateHeader);
-            timeText = view.findViewById(R.id.historyTime);
-            alertText = view.findViewById(R.id.historyAlert);
-            locationText = view.findViewById(R.id.historyLocation);
-            treeText = view.findViewById(R.id.historyTree);
+            historyLocation = view.findViewById(R.id.historyLocation);
+            historyTime = view.findViewById(R.id.historyTime);
+            historyTree = view.findViewById(R.id.historyTree);
             collectButton = view.findViewById(R.id.collectButton);
             deleteButton = view.findViewById(R.id.deleteButton);
             historyImage = view.findViewById(R.id.historyImage);

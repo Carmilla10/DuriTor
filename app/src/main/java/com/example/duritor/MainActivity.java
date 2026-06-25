@@ -21,8 +21,8 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -35,13 +35,15 @@ import java.util.Locale;
 
 public class MainActivity extends DrawerActivity {
 
-    private TextView alertText, timeText, orchardCountText, regionCountText, treeCountText;
+    private TextView alertText, timeText, regionText, orchardText;
+    private TextView orchardCountText, regionCountText, treeCountText;
     private ImageView capturedImageView;
     private DatabaseReference databaseReference;
     private FirebaseAuth mAuth;
     private String currentDisplayedEventId = "";
     private static final String CHANNEL_ID = "fall_alert_channel";
     private String lastNotifiedEventId = "";
+    private boolean initialFallEventsLoaded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +53,8 @@ public class MainActivity extends DrawerActivity {
 
         alertText = findViewById(R.id.alertText);
         timeText = findViewById(R.id.timeText);
+        regionText = findViewById(R.id.regionText);
+        orchardText = findViewById(R.id.orchardText);
         orchardCountText = findViewById(R.id.orchardCountText);
         regionCountText = findViewById(R.id.regionCountText);
         treeCountText = findViewById(R.id.treeCountText);
@@ -64,7 +68,6 @@ public class MainActivity extends DrawerActivity {
             return;
         }
 
-        // Request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -76,39 +79,32 @@ public class MainActivity extends DrawerActivity {
         createNotificationChannel();
 
         databaseReference = FirebaseDatabase.getInstance().getReference("fallEvents");
-
-        databaseReference.addChildEventListener(new ChildEventListener() {
+        databaseReference.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onChildAdded(DataSnapshot snapshot, String previousChildName) {
-                String eventId = snapshot.getKey();
-                if (eventId != null && !eventId.equals(lastNotifiedEventId)) {
-                    lastNotifiedEventId = eventId;
-                    updateFallEvent(snapshot);
-                }
-            }
-
-            @Override
-            public void onChildChanged(DataSnapshot snapshot, String previousChildName) {
+            public void onDataChange(DataSnapshot snapshot) {
                 if (snapshot.exists() && snapshot.hasChildren()) {
-                    updateFallEvent(snapshot);
-                }
-            }
-
-            @Override
-            public void onChildRemoved(DataSnapshot snapshot) {
-                String removedId = snapshot.getKey();
-                if (removedId != null && removedId.equals(currentDisplayedEventId)) {
+                    DataSnapshot latestEvent = findLatestEvent(snapshot);
+                    if (latestEvent != null) {
+                        if (!initialFallEventsLoaded) {
+                            String initialEventId = latestEvent.getKey();
+                            if (initialEventId != null) {
+                                lastNotifiedEventId = initialEventId;
+                            }
+                        }
+                        updateFallEvent(latestEvent, initialFallEventsLoaded);
+                    }
+                } else {
                     runOnUiThread(() -> {
                         alertText.setText("No fall detected");
                         timeText.setText("Waiting for fall...");
+                        regionText.setText("...");
+                        orchardText.setText("...");
                         capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
                         currentDisplayedEventId = "";
                     });
                 }
+                initialFallEventsLoaded = true;
             }
-
-            @Override
-            public void onChildMoved(DataSnapshot snapshot, String previousChildName) {}
 
             @Override
             public void onCancelled(DatabaseError error) {
@@ -122,16 +118,6 @@ public class MainActivity extends DrawerActivity {
                 startActivity(new Intent(MainActivity.this, HistoryActivity.class)));
         findViewById(R.id.mapButton).setOnClickListener(v ->
                 startActivity(new Intent(MainActivity.this, MapActivity.class)));
-        findViewById(R.id.orchardButton).setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, OrchardListActivity.class)));
-        findViewById(R.id.regionButton).setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, RegionListActivity.class)));
-        findViewById(R.id.treeButton).setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, TreeListActivity.class)));
-        findViewById(R.id.analyticsButton).setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, AnalyticsActivity.class)));
-        findViewById(R.id.profileButton).setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
     }
 
     private void createNotificationChannel() {
@@ -202,28 +188,81 @@ public class MainActivity extends DrawerActivity {
         });
     }
 
-    private void updateFallEvent(DataSnapshot snapshot) {
+    private DataSnapshot findLatestEvent(DataSnapshot snapshot) {
+        DataSnapshot latest = null;
+        String latestTimestampKey = null;
+
+        for (DataSnapshot child : snapshot.getChildren()) {
+            String date = child.child("date").getValue(String.class);
+            String time = child.child("time").getValue(String.class);
+            if (date == null) date = "";
+            if (time == null) time = "";
+
+            String sortKey = date + " " + time;
+            if (latest == null || sortKey.compareTo(latestTimestampKey) > 0) {
+                latest = child;
+                latestTimestampKey = sortKey;
+            }
+        }
+        
+        // If current event is collected, find the next latest uncollected event
+        if (latest != null && currentDisplayedEventId.equals(latest.getKey())) {
+            Boolean isCollected = latest.child("collected").getValue(Boolean.class);
+            if (isCollected != null && isCollected) {
+                // Current event is collected, find next one
+                DataSnapshot nextLatest = null;
+                String nextLatestTimestampKey = null;
+                
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    Boolean collected = child.child("collected").getValue(Boolean.class);
+                    if (collected == null || !collected) { // Skip collected events
+                        String date = child.child("date").getValue(String.class);
+                        String time = child.child("time").getValue(String.class);
+                        if (date == null) date = "";
+                        if (time == null) time = "";
+                        
+                        String sortKey = date + " " + time;
+                        if (nextLatest == null || sortKey.compareTo(nextLatestTimestampKey) > 0) {
+                            nextLatest = child;
+                            nextLatestTimestampKey = sortKey;
+                        }
+                    }
+                }
+                
+                // If no uncollected events, show the latest anyway
+                return nextLatest != null ? nextLatest : latest;
+            }
+        }
+        
+        return latest;
+    }
+
+    private void updateFallEvent(DataSnapshot snapshot, boolean isInitialLoad) {
         String eventId = snapshot.getKey();
+        currentDisplayedEventId = eventId;
 
         String alert = snapshot.child("alert").getValue(String.class);
         String date = snapshot.child("date").getValue(String.class);
         String time = snapshot.child("time").getValue(String.class);
         String photoUrl = snapshot.child("photoUrl").getValue(String.class);
         String orchardName = snapshot.child("orchardName").getValue(String.class);
+        String regionName = snapshot.child("regionName").getValue(String.class);
         String treeName = snapshot.child("treeName").getValue(String.class);
 
         if (alert == null || alert.isEmpty()) alert = "Durian Fall Detected!";
-        if (date == null || date.isEmpty()) date = getCurrentDate();
-        if (time == null || time.isEmpty()) time = getCurrentTime();
+        if (date == null || date.isEmpty()) date = "Unknown Date";
+        if (time == null || time.isEmpty()) time = "Unknown Time";
         if (orchardName == null || orchardName.isEmpty()) orchardName = "Unknown Orchard";
+        if (regionName == null || regionName.isEmpty()) regionName = "Unknown Region";
         if (treeName == null || treeName.isEmpty()) treeName = "Unknown Tree";
 
-        final String displayLocation = orchardName + " - " + treeName;
-        final String displayDateTime = date + " " + time;
-        final String fullAlertMessage = alert + " at " + displayLocation;
+        final String fullAlertMessage = alert;
+        final String displayTime = time;
+        final String displayRegion = regionName;
+        final String displayOrchard = orchardName;
         final String finalPhotoUrl = photoUrl;
         final String finalEventId = eventId;
-        final boolean isNewEvent = !finalEventId.equals(currentDisplayedEventId);
+        final boolean isNewEvent = !isInitialLoad && !finalEventId.equals(lastNotifiedEventId);
 
         runOnUiThread(() -> {
             alertText.setText(fullAlertMessage);
@@ -235,11 +274,18 @@ public class MainActivity extends DrawerActivity {
                 }
             }, 3000);
 
-            timeText.setText(displayDateTime);
+            timeText.setText("🕒 " + displayTime);
+            regionText.setText("📍 " + displayRegion);
+            orchardText.setText("🌳 " + displayOrchard);
 
-            if (finalPhotoUrl != null && !finalPhotoUrl.isEmpty() && !finalPhotoUrl.equals("null")) {
+            // Load latest image with cache busting to always show fresh images
+            if (finalPhotoUrl != null && !finalPhotoUrl.isEmpty() && !finalPhotoUrl.equals("null") && !finalPhotoUrl.equals("")) {
+                // Add timestamp to URL to force fresh load
+                String bustedUrl = finalPhotoUrl + "?t=" + System.currentTimeMillis();
                 Glide.with(MainActivity.this)
-                        .load(finalPhotoUrl)
+                        .load(bustedUrl)
+                        .skipMemoryCache(true)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
                         .placeholder(android.R.drawable.ic_menu_camera)
                         .error(android.R.drawable.ic_menu_camera)
                         .centerCrop()
@@ -251,19 +297,9 @@ public class MainActivity extends DrawerActivity {
             if (isNewEvent) {
                 Toast.makeText(MainActivity.this, fullAlertMessage, Toast.LENGTH_LONG).show();
                 sendLocalNotification("🚨 Fall Alert", fullAlertMessage);
-                currentDisplayedEventId = finalEventId;
+                lastNotifiedEventId = finalEventId;
             }
         });
-    }
-
-    private String getCurrentDate() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        return sdf.format(new Date());
-    }
-
-    private String getCurrentTime() {
-        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-        return sdf.format(new Date());
     }
 
     @Override
