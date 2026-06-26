@@ -22,6 +22,8 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import android.graphics.Typeface;
 
 public class HistoryActivity extends DrawerActivity {
 
@@ -181,6 +184,11 @@ public class HistoryActivity extends DrawerActivity {
     }
 
     private void collectEvent(FallEvent event) {
+        if (event == null || event.id == null || event.id.isEmpty()) {
+            Toast.makeText(this, "Unable to collect this event", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (event.collected) {
             Toast.makeText(this, "Already collected", Toast.LENGTH_SHORT).show();
             return;
@@ -223,6 +231,11 @@ public class HistoryActivity extends DrawerActivity {
     }
 
     private void deleteEvent(FallEvent event) {
+        if (event == null || event.id == null || event.id.isEmpty()) {
+            Toast.makeText(this, "Unable to delete this event", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         historyRef.child(event.id).removeValue().addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 Toast.makeText(HistoryActivity.this, "🗑️ Event deleted", Toast.LENGTH_SHORT).show();
@@ -253,9 +266,9 @@ public class HistoryActivity extends DrawerActivity {
         public View getView(int position, View convertView, ViewGroup parent) {
             if (filteredEvents.isEmpty()) {
                 TextView emptyView = new TextView(HistoryActivity.this);
-                emptyView.setText("📭 No events yet");
+                emptyView.setText("📭 No events yet\nPull down or return when a new fall is detected.");
                 emptyView.setTextColor(ContextCompat.getColor(HistoryActivity.this, R.color.text_secondary));
-                emptyView.setPadding(0, 40, 0, 40);
+                emptyView.setPadding(16, 40, 16, 40);
                 emptyView.setTextSize(16f);
                 emptyView.setGravity(View.TEXT_ALIGNMENT_CENTER);
                 return emptyView;
@@ -297,17 +310,32 @@ public class HistoryActivity extends DrawerActivity {
             if (event.photoUrl != null && !event.photoUrl.isEmpty() && !event.photoUrl.equals("null")) {
                 holder.historyImage.setVisibility(View.VISIBLE);
 
-                // Add timestamp to URL to force fresh load (matches MainActivity implementation)
-                String bustedUrl = event.photoUrl + "?t=" + System.currentTimeMillis();
-
-                Glide.with(HistoryActivity.this)
-                        .load(bustedUrl)
-                        .skipMemoryCache(true)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE)
-                        .placeholder(android.R.drawable.ic_menu_camera)
-                        .error(android.R.drawable.ic_menu_camera)
-                        .centerCrop()
-                        .into(holder.historyImage);
+                if (event.photoUrl.startsWith("http")) {
+                    String bustedUrl = event.photoUrl + "?t=" + System.currentTimeMillis();
+                    Glide.with(HistoryActivity.this)
+                            .load(bustedUrl)
+                            .skipMemoryCache(true)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .placeholder(android.R.drawable.ic_menu_camera)
+                            .error(android.R.drawable.ic_menu_camera)
+                            .centerCrop()
+                            .into(holder.historyImage);
+                } else {
+                    StorageReference ref = FirebaseStorage.getInstance().getReference().child(event.photoUrl);
+                    ref.getDownloadUrl().addOnSuccessListener(uri -> {
+                        String bustedUrl = uri.toString() + "?t=" + System.currentTimeMillis();
+                        Glide.with(HistoryActivity.this)
+                                .load(bustedUrl)
+                                .skipMemoryCache(true)
+                                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                .placeholder(android.R.drawable.ic_menu_camera)
+                                .error(android.R.drawable.ic_menu_camera)
+                                .centerCrop()
+                                .into(holder.historyImage);
+                    }).addOnFailureListener(e -> {
+                        holder.historyImage.setVisibility(View.GONE);
+                    });
+                }
             } else {
                 holder.historyImage.setVisibility(View.GONE);
             }

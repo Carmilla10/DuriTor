@@ -33,6 +33,8 @@ import com.google.firebase.database.ValueEventListener;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
 public class MainActivity extends DrawerActivity {
 
@@ -78,6 +80,7 @@ public class MainActivity extends DrawerActivity {
         }
 
         createNotificationChannel();
+        startBackgroundNotificationService();
 
         databaseReference = FirebaseDatabase.getInstance().getReference("fallEvents");
         databaseReference.addValueEventListener(new ValueEventListener() {
@@ -136,6 +139,13 @@ public class MainActivity extends DrawerActivity {
     }
 
     private void sendLocalNotification(String title, String message) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w("MainActivity", "Notification skipped because POST_NOTIFICATIONS is not granted");
+            return;
+        }
+
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -249,6 +259,10 @@ public class MainActivity extends DrawerActivity {
         String orchardName = snapshot.child("orchardName").getValue(String.class);
         String regionName = snapshot.child("regionName").getValue(String.class);
         String treeName = snapshot.child("treeName").getValue(String.class);
+        // Fallback: some devices (Arduino sketch) write `treeId` instead of `treeName`
+        if ((treeName == null || treeName.isEmpty())) {
+            treeName = snapshot.child("treeId").getValue(String.class);
+        }
 
         if (alert == null || alert.isEmpty()) alert = "Durian Fall Detected!";
         if (date == null || date.isEmpty()) date = "Unknown Date";
@@ -282,35 +296,46 @@ public class MainActivity extends DrawerActivity {
             // Load latest image with improved cache busting and error handling
             if (finalPhotoUrl != null && !finalPhotoUrl.trim().isEmpty() && !finalPhotoUrl.equals("null")) {
                 try {
-                    // Add timestamp to URL to force fresh load
-                    String bustedUrl = finalPhotoUrl.contains("?")
-                            ? finalPhotoUrl + "&t=" + System.currentTimeMillis()
-                            : finalPhotoUrl + "?t=" + System.currentTimeMillis();
+                    // If the stored value is a full HTTP URL, load it directly.
+                    if (finalPhotoUrl.startsWith("http")) {
+                        String bustedUrl = finalPhotoUrl.contains("?")
+                                ? finalPhotoUrl + "&t=" + System.currentTimeMillis()
+                                : finalPhotoUrl + "?t=" + System.currentTimeMillis();
 
-                    Glide.with(MainActivity.this)
-                            .load(bustedUrl)
-                            .skipMemoryCache(true)
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .placeholder(android.R.drawable.ic_menu_camera)
-                            .error(android.R.drawable.ic_menu_camera)
-                            .listener(new com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable>() {
-                                @Override
-                                public boolean onLoadFailed(@Nullable com.bumptech.glide.load.engine.GlideException e, Object model, com.bu
-                                        mptech.glide.request.target.Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
-                                    Log.e("MainActivity", "Image load failed: " + finalPhotoUrl, e);
-                                    return false;
+                        Glide.with(MainActivity.this)
+                                .load(bustedUrl)
+                                .skipMemoryCache(true)
+                                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                .placeholder(android.R.drawable.ic_menu_camera)
+                                .error(android.R.drawable.ic_menu_camera)
+                                .centerCrop()
+                                .into(capturedImageView);
+                    } else {
+                        // Otherwise assume it's a Firebase Storage path and resolve it to a download URL.
+                        StorageReference ref = FirebaseStorage.getInstance().getReference().child(finalPhotoUrl);
+                        ref.getDownloadUrl().addOnSuccessListener(uri -> {
+                            String url = uri.toString();
+                            String bustedUrl = url.contains("?") ? url + "&t=" + System.currentTimeMillis() : url + "?t=" + System.currentTimeMillis();
+                            runOnUiThread(() -> {
+                                try {
+                                    Glide.with(MainActivity.this)
+                                            .load(bustedUrl)
+                                            .skipMemoryCache(true)
+                                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                            .placeholder(android.R.drawable.ic_menu_camera)
+                                            .error(android.R.drawable.ic_menu_camera)
+                                            .centerCrop()
+                                            .into(capturedImageView);
+                                } catch (Exception e) {
+                                    Log.e("MainActivity", "Exception loading image from storage ref", e);
+                                    capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
                                 }
-
-                                @Override
-                                public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, com.bumptech.glid
-                                        e.request.target.Target<android.graphics.drawable.Drawable> target, com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource)
-                                {
-                                    Log.d("MainActivity", "Image loaded successfully from: " + dataSource);
-                                    return false;
-                                }
-                            })
-                            .centerCrop()
-                            .into(capturedImageView);
+                            });
+                        }).addOnFailureListener(e -> {
+                            Log.e("MainActivity", "Failed to resolve storage URL: " + finalPhotoUrl, e);
+                            capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
+                        });
+                    }
                 } catch (Exception e) {
                     Log.e("MainActivity", "Exception loading image", e);
                     capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
@@ -326,6 +351,15 @@ public class MainActivity extends DrawerActivity {
                 lastNotifiedEventId = finalEventId;
             }
         });
+    }
+
+    private void startBackgroundNotificationService() {
+        Intent serviceIntent = new Intent(this, FirebaseBackgroundService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
     }
 
     @Override

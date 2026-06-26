@@ -1,15 +1,18 @@
 package com.example.duritor;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.IBinder;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
@@ -60,6 +63,12 @@ public class FirebaseBackgroundService extends Service {
     }
 
     private void sendFallNotification(DataSnapshot snapshot) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
         String alert = snapshot.child("alert").getValue(String.class);
         String orchard = snapshot.child("orchardName").getValue(String.class);
         String tree = snapshot.child("treeName").getValue(String.class);
