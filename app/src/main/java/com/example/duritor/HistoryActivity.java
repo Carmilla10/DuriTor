@@ -139,7 +139,7 @@ public class HistoryActivity extends DrawerActivity {
                     event.region = valueOrDefault(child.child("regionName").getValue(String.class), "Unknown Region");
                     event.tree = valueOrDefault(child.child("treeName").getValue(String.class),
                             valueOrDefault(child.child("treeId").getValue(String.class), "Unknown Tree"));
-                    event.photoUrl = child.child("photoUrl").getValue(String.class);
+                    event.photoUrl = readImageValue(child);
 
                     // SAFELY READ COLLECTED STATUS
                     Boolean collected = child.child("collected").getValue(Boolean.class);
@@ -306,35 +306,25 @@ public class HistoryActivity extends DrawerActivity {
             holder.collectButton.setOnClickListener(v -> collectEvent(event));
             holder.deleteButton.setOnClickListener(v -> confirmDeleteEvent(event));
 
-            // FIXED: Add cache busting to fetch latest images
             if (event.photoUrl != null && !event.photoUrl.isEmpty() && !event.photoUrl.equals("null")) {
                 holder.historyImage.setVisibility(View.VISIBLE);
+                holder.historyImage.setImageResource(android.R.drawable.ic_menu_camera);
+                holder.historyImage.setTag(event.photoUrl);
 
                 if (event.photoUrl.startsWith("http")) {
-                    String bustedUrl = event.photoUrl + "?t=" + System.currentTimeMillis();
-                    Glide.with(HistoryActivity.this)
-                            .load(bustedUrl)
-                            .skipMemoryCache(true)
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .placeholder(android.R.drawable.ic_menu_camera)
-                            .error(android.R.drawable.ic_menu_camera)
-                            .centerCrop()
-                            .into(holder.historyImage);
+                    loadImageUrl(appendCacheParam(event.photoUrl), holder.historyImage);
                 } else {
-                    StorageReference ref = FirebaseStorage.getInstance().getReference().child(event.photoUrl);
+                    StorageReference ref = event.photoUrl.startsWith("gs://")
+                            ? FirebaseStorage.getInstance().getReferenceFromUrl(event.photoUrl)
+                            : FirebaseStorage.getInstance().getReference().child(event.photoUrl);
+
                     ref.getDownloadUrl().addOnSuccessListener(uri -> {
-                        String bustedUrl = uri.toString() + "?t=" + System.currentTimeMillis();
-                        Glide.with(HistoryActivity.this)
-                                .load(bustedUrl)
-                                .skipMemoryCache(true)
-                                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                                .placeholder(android.R.drawable.ic_menu_camera)
-                                .error(android.R.drawable.ic_menu_camera)
-                                .centerCrop()
-                                .into(holder.historyImage);
-                    }).addOnFailureListener(e -> {
-                        holder.historyImage.setVisibility(View.GONE);
-                    });
+                        if (event.photoUrl.equals(holder.historyImage.getTag())) {
+                            loadImageUrl(appendCacheParam(uri.toString()), holder.historyImage);
+                        }
+                    }).addOnFailureListener(e ->
+                            holder.historyImage.setVisibility(View.GONE)
+                    );
                 }
             } else {
                 holder.historyImage.setVisibility(View.GONE);
@@ -342,6 +332,42 @@ public class HistoryActivity extends DrawerActivity {
 
             return convertView;
         }
+    }
+
+    private String readImageValue(DataSnapshot snapshot) {
+        String[] possibleKeys = {
+                "photoUrl",
+                "photoURL",
+                "imageUrl",
+                "imageURL",
+                "image",
+                "downloadUrl",
+                "storagePath",
+                "photoPath"
+        };
+
+        for (String key : possibleKeys) {
+            String value = snapshot.child(key).getValue(String.class);
+            if (value != null && !value.trim().isEmpty() && !"null".equalsIgnoreCase(value.trim())) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String appendCacheParam(String url) {
+        return url + (url.contains("?") ? "&" : "?") + "t=" + System.currentTimeMillis();
+    }
+
+    private void loadImageUrl(String url, ImageView target) {
+        Glide.with(this)
+                .load(url)
+                .skipMemoryCache(true)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .placeholder(android.R.drawable.ic_menu_camera)
+                .error(android.R.drawable.ic_menu_camera)
+                .centerCrop()
+                .into(target);
     }
 
     private static class ViewHolder {

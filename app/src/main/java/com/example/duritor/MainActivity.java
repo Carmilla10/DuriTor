@@ -255,7 +255,7 @@ public class MainActivity extends DrawerActivity {
         String alert = snapshot.child("alert").getValue(String.class);
         String date = snapshot.child("date").getValue(String.class);
         String time = snapshot.child("time").getValue(String.class);
-        String photoUrl = snapshot.child("photoUrl").getValue(String.class);
+        String photoUrl = readImageValue(snapshot);
         String orchardName = snapshot.child("orchardName").getValue(String.class);
         String regionName = snapshot.child("regionName").getValue(String.class);
         String treeName = snapshot.child("treeName").getValue(String.class);
@@ -293,57 +293,7 @@ public class MainActivity extends DrawerActivity {
             regionText.setText("📍 " + displayRegion);
             orchardText.setText("🌳 " + displayOrchard);
 
-            // Load latest image with improved cache busting and error handling
-            if (finalPhotoUrl != null && !finalPhotoUrl.trim().isEmpty() && !finalPhotoUrl.equals("null")) {
-                try {
-                    // If the stored value is a full HTTP URL, load it directly.
-                    if (finalPhotoUrl.startsWith("http")) {
-                        String bustedUrl = finalPhotoUrl.contains("?")
-                                ? finalPhotoUrl + "&t=" + System.currentTimeMillis()
-                                : finalPhotoUrl + "?t=" + System.currentTimeMillis();
-
-                        Glide.with(MainActivity.this)
-                                .load(bustedUrl)
-                                .skipMemoryCache(true)
-                                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                                .placeholder(android.R.drawable.ic_menu_camera)
-                                .error(android.R.drawable.ic_menu_camera)
-                                .centerCrop()
-                                .into(capturedImageView);
-                    } else {
-                        // Otherwise assume it's a Firebase Storage path and resolve it to a download URL.
-                        StorageReference ref = FirebaseStorage.getInstance().getReference().child(finalPhotoUrl);
-                        ref.getDownloadUrl().addOnSuccessListener(uri -> {
-                            String url = uri.toString();
-                            String bustedUrl = url.contains("?") ? url + "&t=" + System.currentTimeMillis() : url + "?t=" + System.currentTimeMillis();
-                            runOnUiThread(() -> {
-                                try {
-                                    Glide.with(MainActivity.this)
-                                            .load(bustedUrl)
-                                            .skipMemoryCache(true)
-                                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                                            .placeholder(android.R.drawable.ic_menu_camera)
-                                            .error(android.R.drawable.ic_menu_camera)
-                                            .centerCrop()
-                                            .into(capturedImageView);
-                                } catch (Exception e) {
-                                    Log.e("MainActivity", "Exception loading image from storage ref", e);
-                                    capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
-                                }
-                            });
-                        }).addOnFailureListener(e -> {
-                            Log.e("MainActivity", "Failed to resolve storage URL: " + finalPhotoUrl, e);
-                            capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
-                        });
-                    }
-                } catch (Exception e) {
-                    Log.e("MainActivity", "Exception loading image", e);
-                    capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
-                }
-            } else {
-                Log.w("MainActivity", "Invalid photoUrl: " + finalPhotoUrl);
-                capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
-            }
+            loadFallImage(finalPhotoUrl);
 
             if (isNewEvent) {
                 Toast.makeText(MainActivity.this, fullAlertMessage, Toast.LENGTH_LONG).show();
@@ -351,6 +301,71 @@ public class MainActivity extends DrawerActivity {
                 lastNotifiedEventId = finalEventId;
             }
         });
+    }
+
+    private String readImageValue(DataSnapshot snapshot) {
+        String[] possibleKeys = {
+                "photoUrl",
+                "photoURL",
+                "imageUrl",
+                "imageURL",
+                "image",
+                "downloadUrl",
+                "storagePath",
+                "photoPath"
+        };
+
+        for (String key : possibleKeys) {
+            String value = snapshot.child(key).getValue(String.class);
+            if (value != null && !value.trim().isEmpty() && !"null".equalsIgnoreCase(value.trim())) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private void loadFallImage(String imageValue) {
+        if (imageValue == null || imageValue.trim().isEmpty() || "null".equalsIgnoreCase(imageValue.trim())) {
+            Log.w("MainActivity", "No image value found for latest fall event");
+            capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
+            return;
+        }
+
+        String cleanImageValue = imageValue.trim();
+        try {
+            if (cleanImageValue.startsWith("http")) {
+                loadImageUrl(appendCacheParam(cleanImageValue), capturedImageView);
+            } else {
+                StorageReference ref = cleanImageValue.startsWith("gs://")
+                        ? FirebaseStorage.getInstance().getReferenceFromUrl(cleanImageValue)
+                        : FirebaseStorage.getInstance().getReference().child(cleanImageValue);
+
+                ref.getDownloadUrl()
+                        .addOnSuccessListener(uri -> loadImageUrl(appendCacheParam(uri.toString()), capturedImageView))
+                        .addOnFailureListener(e -> {
+                            Log.e("MainActivity", "Failed to resolve image: " + cleanImageValue, e);
+                            capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
+                        });
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Exception loading image: " + cleanImageValue, e);
+            capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
+        }
+    }
+
+    private String appendCacheParam(String url) {
+        return url + (url.contains("?") ? "&" : "?") + "t=" + System.currentTimeMillis();
+    }
+
+    private void loadImageUrl(String url, ImageView target) {
+        Glide.with(this)
+                .load(url)
+                .skipMemoryCache(true)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .placeholder(android.R.drawable.ic_menu_camera)
+                .error(android.R.drawable.ic_menu_camera)
+                .centerCrop()
+                .into(target);
     }
 
     private void startBackgroundNotificationService() {
