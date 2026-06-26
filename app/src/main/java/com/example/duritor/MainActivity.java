@@ -305,14 +305,14 @@ public class MainActivity extends DrawerActivity {
 
     private String readImageValue(DataSnapshot snapshot) {
         String[] possibleKeys = {
+                "storagePath",
+                "photoPath",
                 "photoUrl",
                 "photoURL",
                 "imageUrl",
                 "imageURL",
                 "image",
-                "downloadUrl",
-                "storagePath",
-                "photoPath"
+                "downloadUrl"
         };
 
         for (String key : possibleKeys) {
