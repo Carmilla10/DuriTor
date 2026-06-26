@@ -38,7 +38,7 @@ import com.google.firebase.storage.StorageReference;
 
 public class MainActivity extends DrawerActivity {
 
-    private TextView alertText, timeText, regionText, orchardText;
+    private TextView alertText, timeText, regionText, orchardText, photoStatusText;
     private TextView orchardCountText, regionCountText, treeCountText;
     private ImageView capturedImageView;
     private DatabaseReference databaseReference;
@@ -61,6 +61,7 @@ public class MainActivity extends DrawerActivity {
         orchardCountText = findViewById(R.id.orchardCountText);
         regionCountText = findViewById(R.id.regionCountText);
         treeCountText = findViewById(R.id.treeCountText);
+        photoStatusText = findViewById(R.id.photoStatusText);
         capturedImageView = findViewById(R.id.capturedImageView);
 
         mAuth = FirebaseAuth.getInstance();
@@ -103,6 +104,7 @@ public class MainActivity extends DrawerActivity {
                         timeText.setText("Waiting for fall...");
                         regionText.setText("...");
                         orchardText.setText("...");
+                        photoStatusText.setText("No fall event image yet");
                         capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
                         currentDisplayedEventId = "";
                     });
@@ -305,14 +307,14 @@ public class MainActivity extends DrawerActivity {
 
     private String readImageValue(DataSnapshot snapshot) {
         String[] possibleKeys = {
-                "storagePath",
-                "photoPath",
                 "photoUrl",
                 "photoURL",
                 "imageUrl",
                 "imageURL",
                 "image",
-                "downloadUrl"
+                "downloadUrl",
+                "storagePath",
+                "photoPath"
         };
 
         for (String key : possibleKeys) {
@@ -327,11 +329,13 @@ public class MainActivity extends DrawerActivity {
     private void loadFallImage(String imageValue) {
         if (imageValue == null || imageValue.trim().isEmpty() || "null".equalsIgnoreCase(imageValue.trim())) {
             Log.w("MainActivity", "No image value found for latest fall event");
+            photoStatusText.setText("Firebase event found, but no photoUrl");
             capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
             return;
         }
 
         String cleanImageValue = imageValue.trim();
+        photoStatusText.setText("Loading image: " + cleanImageValue);
         try {
             if (cleanImageValue.startsWith("http")) {
                 loadImageUrl(appendCacheParam(cleanImageValue), capturedImageView);
@@ -344,11 +348,13 @@ public class MainActivity extends DrawerActivity {
                         .addOnSuccessListener(uri -> loadImageUrl(appendCacheParam(uri.toString()), capturedImageView))
                         .addOnFailureListener(e -> {
                             Log.e("MainActivity", "Failed to resolve image: " + cleanImageValue, e);
+                            photoStatusText.setText("Image path failed: " + cleanImageValue);
                             capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
                         });
             }
         } catch (Exception e) {
             Log.e("MainActivity", "Exception loading image: " + cleanImageValue, e);
+            photoStatusText.setText("Image load error: " + cleanImageValue);
             capturedImageView.setImageResource(android.R.drawable.ic_menu_camera);
         }
     }
